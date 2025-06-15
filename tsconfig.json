@@ -1,24 +1,22 @@
 {
   "compilerOptions": {
-    "outDir": "dist",
     "rootDir": "src",
-    "lib": ["ESNext", "dom"],
-    "module": "Preserve",
-    "moduleResolution": "Bundler",
-    "strict": false,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": false,
-    "allowImportingTsExtensions": true,
+    "outDir": "dist",
     "declaration": true,
-    "emitDeclarationOnly": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": false,
+    "esModuleInterop": true,
     "resolveJsonModule": true,
-    "noImplicitAny": false,
-    "allowJs": true,
-    "checkJs": false,
-    "noEmitOnError": false,
-    "moduleDetection": "force",
-    "allowArbitraryExtensions": true
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "types": ["node", "vitest/globals"],
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }

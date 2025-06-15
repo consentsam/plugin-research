@@ -4,8 +4,9 @@ export default defineConfig({
   entry: ['src/index.ts'],
   format: ['cjs', 'esm'],
   dts: true,
+  clean: true,
+  shims: true,
   splitting: false,
   sourcemap: true,
-  clean: true,
-  external: ['@elizaos/core'],
+  external: ['@elizaos/core', 'uuid'],
 });
