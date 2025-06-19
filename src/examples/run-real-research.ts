@@ -16,43 +16,19 @@ config();
 // Enable file logging
 process.env.FILE_LOGGING = 'true';
 
-// Create runtime with real API keys
+// Create runtime with real API keys - NO HARD-CODED FALLBACKS
 const runtime = {
   getSetting: (key: string) => {
-    // Check for API keys
     if (key === 'FILE_LOGGING') return 'true';
-    if (key === 'TAVILY_API_KEY') return process.env.TAVILY_API_KEY || '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';
-    if (key === 'EXA_API_KEY') return process.env.EXA_API_KEY || '267d9e0d-8617-444f-b1bf-612f3bf431f0';
-    if (key === 'SERPAPI_API_KEY') return process.env.SERPAPI_API_KEY || '301e99e18e27bb7d0ddee79a86168f251b08925f9b260962573f45c77134b9f6';
-    if (key === 'FIRECRAWL_API_KEY') return process.env.FIRECRAWL_API_KEY || 'fc-857417811665460e92716b92e08ec398';
-    return process.env[key] || null;
+    const value = process.env[key];
+    if (!value) {
+      console.warn(`⚠️  Environment variable ${key} not found`);
+    }
+    return value || null;
   },
   useModel: async (type: any, params: any) => {
-    // Simple mock responses for LLM calls
-    const prompt = params.messages?.[params.messages.length - 1]?.content || '';
-    
-    if (prompt.includes('research domain')) {
-      return 'computer_science';
-    }
-    if (prompt.includes('task type')) {
-      return 'analytical';
-    }
-    if (prompt.includes('research plan')) {
-      return 'Research plan: 1. Search for recent developments 2. Analyze key findings 3. Synthesize information';
-    }
-    if (prompt.includes('search queries')) {
-      return 'AI breakthroughs 2024\nlatest artificial intelligence advances\nAI research papers 2024';
-    }
-    if (prompt.includes('relevance')) {
-      return '0.85';
-    }
-    if (prompt.includes('Analyze')) {
-      return 'Key insights: Significant breakthroughs in large language models, multimodal AI, and AI safety';
-    }
-    if (prompt.includes('Synthesize')) {
-      return 'The year 2024 has seen remarkable advances in AI, particularly in large language models achieving better reasoning capabilities, multimodal systems that can process multiple types of data simultaneously, and significant progress in AI safety and alignment research.';
-    }
-    return 'Analysis complete';
+    // This example file should be updated to use real API calls
+    throw new Error('This example file needs to be updated to use real LLM APIs. Use the real-runtime.ts implementation instead.');
   },
   logger: {
     info: console.log,

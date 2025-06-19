@@ -10,6 +10,8 @@ import { RateLimitedSearchProvider } from './rate-limiter';
 import { ExaSearchProvider } from './search-providers/exa';
 import { SerpAPISearchProvider } from './search-providers/serpapi';
 import { StagehandGoogleSearchProvider } from './search-providers/stagehand-google';
+import { PyPISearchProvider } from './search-providers/pypi';
+import { NPMSearchProvider } from './search-providers/npm';
 
 export type { SearchProvider, ContentExtractor };
 
@@ -45,6 +47,113 @@ class PlaywrightWrapper implements ContentExtractor {
       return { content: '', metadata: {} };
     }
     return result;
+  }
+}
+
+// Wrapper for PyPI search provider
+class PyPISearchWrapper implements SearchProvider {
+  private provider: PyPISearchProvider;
+  name = 'pypi';
+  
+  constructor() {
+    this.provider = new PyPISearchProvider();
+  }
+  
+  async search(query: string, maxResults?: number): Promise<any[]> {
+    return this.provider.search(query, maxResults);
+  }
+}
+
+// Wrapper for NPM search provider
+class NPMSearchWrapper implements SearchProvider {
+  private provider: NPMSearchProvider;
+  name = 'npm';
+  
+  constructor() {
+    this.provider = new NPMSearchProvider();
+  }
+  
+  async search(query: string, maxResults?: number): Promise<any[]> {
+    return this.provider.search(query, maxResults);
+  }
+}
+
+// Wrapper for GitHub search provider (uses existing GitHub plugin)
+class GitHubSearchWrapper implements SearchProvider {
+  name = 'github';
+  
+  constructor(private runtime: IAgentRuntime) {}
+  
+  async search(query: string, maxResults?: number): Promise<any[]> {
+    try {
+      const githubService = this.runtime.getService('github');
+      if (!githubService) {
+        elizaLogger.warn('GitHub service not available');
+        return [];
+      }
+      
+      const results: any[] = [];
+      const limit = maxResults || 10;
+      
+      // Search repositories
+      const repos = await (githubService as any).searchRepositories(query, {
+        sort: 'stars',
+        per_page: Math.min(limit, 5),
+      });
+      
+      if (repos?.items) {
+        results.push(...repos.items.map((repo: any) => ({
+          title: repo.full_name,
+          url: repo.html_url,
+          snippet: repo.description || 'No description',
+          content: `${repo.description || ''}\nStars: ${repo.stargazers_count} | Language: ${repo.language || 'N/A'}`,
+          score: Math.min(1.0, repo.stargazers_count / 10000), // Normalize by star count
+          provider: 'github',
+          metadata: {
+            type: 'repository',
+            language: repo.language,
+            stars: repo.stargazers_count,
+            forks: repo.forks_count,
+            openIssues: repo.open_issues_count,
+            updatedAt: repo.updated_at,
+            owner: repo.owner?.login,
+          },
+        })));
+      }
+      
+      // Search issues if we have room for more results
+      if (results.length < limit) {
+        const issues = await (githubService as any).searchIssues(`${query} is:issue`, {
+          sort: 'updated',
+          per_page: Math.min(limit - results.length, 5),
+        });
+        
+        if (issues?.items) {
+          results.push(...issues.items.map((issue: any) => ({
+            title: issue.title,
+            url: issue.html_url,
+            snippet: issue.body ? issue.body.substring(0, 200) + '...' : 'No description',
+            content: `${issue.title}\n${issue.body || ''}`,
+            score: issue.comments / 50, // Normalize by comment count
+            provider: 'github',
+            metadata: {
+              type: 'issue',
+              state: issue.state,
+              comments: issue.comments,
+              author: issue.user?.login,
+              createdAt: issue.created_at,
+              updatedAt: issue.updated_at,
+              number: issue.number,
+            },
+          })));
+        }
+      }
+      
+      return results.slice(0, limit);
+    } catch (error) {
+      elizaLogger.error('GitHub search error:', error);
+      return [];
+    }
   }
 }
 
@@ -146,6 +255,18 @@ export function createSearchProvider(type: string, runtime: any): SearchProvider
 
     case 'academic':
       return new AcademicSearchProvider(runtime);
+      
+    case 'pypi':
+      elizaLogger.info('Using PyPI search provider');
+      return new PyPISearchWrapper();
+      
+    case 'npm':
+      elizaLogger.info('Using NPM search provider');
+      return new NPMSearchWrapper();
+      
+    case 'github':
+      elizaLogger.info('Using GitHub search provider');
+      return new GitHubSearchWrapper(runtime);
 
     case 'web':
     default:
@@ -171,34 +292,112 @@ export function createSearchProvider(type: string, runtime: any): SearchProvider
       elizaLogger.info('No web search provider configured, using mock provider');
       return {
         name: 'mock-web',
-        search: async () => []
+        search: async (query: string) => {
+          elizaLogger.warn(`[Mock Web Provider] Attempted to search for: "${query}" but no API keys are configured`);
+          elizaLogger.warn('[Mock Web Provider] Please configure at least one of: TAVILY_API_KEY, EXA_API_KEY, SERPAPI_API_KEY, or SERPER_API_KEY');
+          // Return a single result explaining the issue
+          return [{
+            title: 'Search Provider Not Configured',
+            url: 'https://example.com/configuration-needed',
+            snippet: `Unable to search for "${query}" - No search API keys are configured. Please add TAVILY_API_KEY, EXA_API_KEY, SERPAPI_API_KEY, or SERPER_API_KEY to your environment.`,
+            content: `Search attempted for: "${query}"\n\nNo search provider API keys were found. To enable web search, please configure one of the following environment variables:\n- TAVILY_API_KEY\n- EXA_API_KEY\n- SERPAPI_API_KEY\n- SERPER_API_KEY`,
+            score: 0,
+            provider: 'mock-web',
+            metadata: {
+              error: true,
+              query: query,
+              message: 'No search provider configured'
+            }
+          }];
+        }
       };
   }
 }
 
-export function createContentExtractor(runtime: IAgentRuntime): ContentExtractor | null {
-  // Priority order:
-  // 1. Stagehand/Browserbase (if available) - preferred as it's less likely to be blocked
-  try {
-    const stagehandService = runtime.getService('stagehand');
-    if (stagehandService) {
-      elizaLogger.info('Using Stagehand content extractor (via browserbase)');
-      return new StagehandContentExtractor(runtime);
+// Enhanced content extractor with multiple fallback strategies
+class RobustContentExtractor implements ContentExtractor {
+  private extractors: ContentExtractor[] = [];
+  
+  constructor(runtime: IAgentRuntime) {
+    // Build priority list of extractors
+    
+    // 1. Stagehand/Browserbase (highest priority - AI-powered)
+    try {
+      const stagehandService = runtime.getService('stagehand');
+      if (stagehandService) {
+        this.extractors.push(new StagehandContentExtractor(runtime));
+        elizaLogger.info('Added Stagehand content extractor');
+      }
+    } catch (e) {
+      // Service not available
     }
-  } catch (e) {
-    // Service not available
+    
+    // 2. Firecrawl (high priority - commercial service)
+    const firecrawlKey = runtime.getSetting('FIRECRAWL_API_KEY');
+    if (firecrawlKey) {
+      this.extractors.push(new FirecrawlWrapper(firecrawlKey));
+      elizaLogger.info('Added Firecrawl content extractor');
+    }
+    
+    // 3. Playwright (fallback - may get blocked)
+    this.extractors.push(new PlaywrightWrapper());
+    elizaLogger.info('Added Playwright content extractor as fallback');
   }
   
-  // 2. Firecrawl (if API key present)
-  const firecrawlKey = runtime.getSetting('FIRECRAWL_API_KEY');
-  if (firecrawlKey) {
-    elizaLogger.info('Using Firecrawl content extractor');
-    return new FirecrawlWrapper(firecrawlKey);
+  async extractContent(url: string): Promise<{ content: string; title?: string; metadata?: any }> {
+    const errors: Error[] = [];
+    
+    for (let i = 0; i < this.extractors.length; i++) {
+      const extractor = this.extractors[i];
+      const extractorName = extractor.constructor.name;
+      
+      try {
+        elizaLogger.debug(`Attempting content extraction with ${extractorName} for: ${url}`);
+        const result = await extractor.extractContent(url);
+        
+        // Validate result quality
+        if (result && result.content && result.content.trim().length > 100) {
+          elizaLogger.info(`Successfully extracted content with ${extractorName} (${result.content.length} chars)`);
+          
+          // Add extraction metadata
+          result.metadata = {
+            ...result.metadata,
+            extractorUsed: extractorName,
+            extractionTime: Date.now(),
+            contentLength: result.content.length,
+            url: url
+          };
+          
+          return result;
+        } else {
+          elizaLogger.warn(`${extractorName} returned insufficient content (${result?.content?.length || 0} chars)`);
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        elizaLogger.warn(`${extractorName} extraction failed for ${url}: ${errorMsg}`);
+        errors.push(error instanceof Error ? error : new Error(errorMsg));
+      }
+    }
+    
+    // All extractors failed
+    elizaLogger.error(`All content extractors failed for ${url}. Errors:`, errors.map(e => e.message));
+    
+    // Return minimal result with error info
+    return {
+      content: `Failed to extract content from ${url}. Content may be behind paywall, require authentication, or have anti-bot protection.`,
+      title: undefined,
+      metadata: {
+        extractionFailed: true,
+        url: url,
+        errors: errors.map(e => e.message),
+        extractionTime: Date.now()
+      }
+    };
   }
-  
-  // 3. Playwright (as fallback - can get blocked)
-  elizaLogger.info('Using Playwright content extractor (may get blocked on some sites)');
-  return new PlaywrightWrapper();
+}
+
+export function createContentExtractor(runtime: IAgentRuntime): ContentExtractor | null {
+  return new RobustContentExtractor(runtime);
 }
 
 export function createAcademicSearchProvider(runtime: IAgentRuntime): SearchProvider {

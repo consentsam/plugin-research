@@ -31,11 +31,11 @@ ANTHROPIC_API_KEY=your_anthropic_key
 
 ```typescript
 import { researchPlugin } from '@elizaos/plugin-research';
-import { browserbasePlugin } from '@elizaos/plugin-stagehand';
+import { stagehandPlugin } from '@elizaos/plugin-stagehand';
 
 const config = {
   plugins: [
-    browserbasePlugin, // Load browserbase first
+    stagehandPlugin, // Load browserbase first
     researchPlugin, // Research will auto-detect it
   ],
 };
@@ -116,7 +116,7 @@ You should see:
 
 ### "No stagehand service found"
 
-- Ensure browserbasePlugin is loaded BEFORE researchPlugin
+- Ensure stagehandPlugin is loaded BEFORE researchPlugin
 - Check that browserbase plugin initialized correctly
 
 ### Still getting blocked

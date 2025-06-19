@@ -31,3 +31,10 @@ coverage/
 .eliza/
 
 .cursor
+
+deep_research_bench/
+research_logs/
+docs/
+benchmark_results/
+temp/
+test-deepresearch-results.jsonl

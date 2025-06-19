@@ -1,6 +1,9 @@
 import { elizaLogger, IAgentRuntime, ModelType, Service } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 import { ResearchEvaluator } from './evaluation/research-evaluator';
+import { SearchResultProcessor } from './processing/result-processor';
+import { RelevanceAnalyzer } from './processing/relevance-analyzer';
+import { ResearchLogger } from './processing/research-logger';
 import {
   ContentExtractor,
   createContentExtractor,
@@ -83,7 +86,7 @@ const DEFAULT_CONFIG: ResearchConfig = {
   timeout: 600000, // 10 minutes for thorough research
   enableCitations: true,
   enableImages: false,
-  searchProviders: ['web', 'academic'], // Include academic sources by default
+  searchProviders: ['web', 'academic', 'github'], // Include GitHub for code research by default
   language: 'en',
   researchDepth: ResearchDepth.DEEP, // Default to deep research
   domain: ResearchDomain.GENERAL,
@@ -102,6 +105,9 @@ export class ResearchService extends Service {
   private strategyFactory: ResearchStrategyFactory;
   private criteriaGenerator: EvaluationCriteriaGenerator;
   private evaluator: ResearchEvaluator;
+  private resultProcessor: SearchResultProcessor;
+  private relevanceAnalyzer: RelevanceAnalyzer;
+  private researchLogger: ResearchLogger;
   private performanceData: Map<string, PerformanceMetrics> = new Map();
 
   static serviceName = 'research';
@@ -128,6 +134,15 @@ export class ResearchService extends Service {
     this.strategyFactory = new ResearchStrategyFactory(runtime);
     this.criteriaGenerator = new EvaluationCriteriaGenerator(runtime);
     this.evaluator = new ResearchEvaluator(runtime);
+    this.relevanceAnalyzer = new RelevanceAnalyzer(runtime);
+    this.researchLogger = new ResearchLogger(runtime);
+    this.resultProcessor = new SearchResultProcessor({
+      qualityThreshold: 0.4,
+      deduplicationThreshold: 0.85,
+      maxResults: 50,
+      prioritizeRecent: true,
+      diversityWeight: 0.3,
+    });
   }
 
   async createResearchProject(
@@ -173,6 +188,19 @@ export class ResearchService extends Service {
 
     // Extract task type
     const taskType = await this.extractTaskType(query);
+    
+    // Select appropriate search providers based on domain and query
+    const selectedProviders = this.selectSearchProviders(domain, query);
+    
+    // Update config with domain-specific providers (merge with user-specified ones)
+    const searchProviders = config.searchProviders?.length 
+      ? [...new Set([...config.searchProviders, ...selectedProviders])]
+      : selectedProviders;
+      
+    // Update the config object for use in research
+    (config as any).searchProviders = searchProviders;
+    
+    elizaLogger.info(`[ResearchService] Domain: ${domain}, Selected providers: ${searchProviders.join(', ')}`);
 
     // Create query plan
     const queryPlan = await this.queryPlanner.createQueryPlan(query, {
@@ -208,36 +236,93 @@ export class ResearchService extends Service {
   }
 
   private async extractDomain(query: string): Promise<ResearchDomain> {
-    // Simple heuristic-based domain extraction for testing
-    const lowerQuery = query.toLowerCase();
+    // Use embeddings-based classification for more accurate domain detection
+    try {
+      if (this.runtime.useModel) {
+        // Create domain examples for similarity matching
+        const domainExamples = {
+          [ResearchDomain.PHYSICS]: [
+            "quantum mechanics and particle physics research",
+            "theoretical physics and relativity studies",
+            "condensed matter physics and thermodynamics"
+          ],
+          [ResearchDomain.COMPUTER_SCIENCE]: [
+            "machine learning and artificial intelligence",
+            "software engineering and programming languages",
+            "algorithms and data structures research"
+          ],
+          [ResearchDomain.BIOLOGY]: [
+            "molecular biology and genetics research",
+            "cell biology and biochemistry studies",
+            "evolutionary biology and ecology"
+          ],
+          [ResearchDomain.MEDICINE]: [
+            "clinical medicine and patient treatment",
+            "medical research and drug development",
+            "healthcare and disease management"
+          ],
+          [ResearchDomain.CHEMISTRY]: [
+            "organic chemistry and synthesis",
+            "analytical chemistry and spectroscopy",
+            "physical chemistry and materials"
+          ],
+          [ResearchDomain.PSYCHOLOGY]: [
+            "cognitive psychology and behavior",
+            "clinical psychology and mental health",
+            "social psychology and human behavior"
+          ],
+          [ResearchDomain.ECONOMICS]: [
+            "economic theory and market analysis",
+            "finance and monetary policy",
+            "economic development and trade"
+          ],
+          [ResearchDomain.POLITICS]: [
+            "political theory and governance",
+            "international relations and diplomacy",
+            "public policy and administration"
+          ]
+        };
+        
+        // Get query embedding
+        const queryEmbedding = await this.runtime.useModel(ModelType.TEXT_EMBEDDING, {
+          text: query
+        });
+        
+        let bestDomain = ResearchDomain.GENERAL;
+        let bestSimilarity = 0;
+        
+        // Compare with domain examples
+        for (const [domain, examples] of Object.entries(domainExamples)) {
+          for (const example of examples) {
+            try {
+              const exampleEmbedding = await this.runtime.useModel(ModelType.TEXT_EMBEDDING, {
+                text: example
+              });
+              
+              // Calculate cosine similarity
+              const similarity = this.calculateCosineSimilarity(queryEmbedding as number[], exampleEmbedding as number[]);
+              
+              if (similarity > bestSimilarity) {
+                bestSimilarity = similarity;
+                bestDomain = domain as ResearchDomain;
+              }
+            } catch (error) {
+              elizaLogger.debug(`Error processing domain example: ${error instanceof Error ? error.message : String(error)}`);
+            }
+          }
+        }
+        
+        // If similarity is high enough, use embedding-based classification
+        if (bestSimilarity > 0.7) {
+          elizaLogger.info(`Domain classified via embeddings: ${bestDomain} (similarity: ${bestSimilarity.toFixed(3)})`);
+          return bestDomain;
+        }
+      }
+    } catch (error) {
+      elizaLogger.warn('Error using embeddings for domain classification, falling back to LLM:', error);
+    }
     
-    // Check for domain keywords
-    if (lowerQuery.includes('quantum') || lowerQuery.includes('physics') || lowerQuery.includes('particle')) {
-      return ResearchDomain.PHYSICS;
-    }
-    if (lowerQuery.includes('biology') || lowerQuery.includes('gene') || lowerQuery.includes('cell') || lowerQuery.includes('dna')) {
-      return ResearchDomain.BIOLOGY;
-    }
-    if (lowerQuery.includes('computer') || lowerQuery.includes('software') || lowerQuery.includes('algorithm') || lowerQuery.includes('programming')) {
-      return ResearchDomain.COMPUTER_SCIENCE;
-    }
-    if (lowerQuery.includes('economic') || lowerQuery.includes('finance') || lowerQuery.includes('market') || lowerQuery.includes('currency')) {
-      return ResearchDomain.ECONOMICS;
-    }
-    if (lowerQuery.includes('medicine') || lowerQuery.includes('health') || lowerQuery.includes('disease') || lowerQuery.includes('treatment')) {
-      return ResearchDomain.MEDICINE;
-    }
-    if (lowerQuery.includes('psychology') || lowerQuery.includes('mental') || lowerQuery.includes('behavior')) {
-      return ResearchDomain.PSYCHOLOGY;
-    }
-    if (lowerQuery.includes('chemistry') || lowerQuery.includes('chemical') || lowerQuery.includes('molecule')) {
-      return ResearchDomain.CHEMISTRY;
-    }
-    if (lowerQuery.includes('ai') || lowerQuery.includes('artificial intelligence') || lowerQuery.includes('machine learning')) {
-      return ResearchDomain.COMPUTER_SCIENCE;
-    }
-    
-    // If we have a working runtime.useModel, use it for more accurate classification
+    // Fallback: Use LLM classification
     if (this.runtime.useModel) {
       const prompt = `Analyze this research query and determine the most appropriate research domain.
 
@@ -246,6 +331,12 @@ Query: "${query}"
 Available domains:
 ${Object.values(ResearchDomain).map(d => `- ${d}`).join('\n')}
 
+Consider:
+- Primary subject matter and field of study
+- Methodology and approach
+- Target audience and applications
+- Interdisciplinary connections
+
 Respond with ONLY the domain name from the list above. Be precise.`;
 
       try {
@@ -253,11 +344,11 @@ Respond with ONLY the domain name from the list above. Be precise.`;
           messages: [
             { 
               role: 'system', 
-              content: 'You are a research domain classifier. Respond with only the domain name, nothing else.' 
+              content: 'You are an expert research domain classifier. Analyze the query and respond with only the most appropriate domain name from the provided list.' 
             },
             { role: 'user', content: prompt }
           ],
-          temperature: 0.3,
+          temperature: 0.1, // Low temperature for consistent classification
         });
 
         const domainText = (
@@ -267,24 +358,117 @@ Respond with ONLY the domain name from the list above. Be precise.`;
         // Exact match first
         for (const domain of Object.values(ResearchDomain)) {
           if (domainText === domain.toLowerCase()) {
+            elizaLogger.info(`Domain classified via LLM: ${domain}`);
             return domain as ResearchDomain;
           }
         }
 
         // Partial match fallback
         for (const domain of Object.values(ResearchDomain)) {
-          if (domainText.includes(domain.toLowerCase())) {
+          if (domainText.includes(domain.toLowerCase().replace('_', ' ')) || 
+              domainText.includes(domain.toLowerCase().replace('_', ''))) {
+            elizaLogger.info(`Domain classified via LLM (partial match): ${domain}`);
             return domain as ResearchDomain;
           }
         }
 
-        elizaLogger.warn(`Could not extract domain from response: ${domainText}`);
+        elizaLogger.warn(`Could not extract domain from LLM response: ${domainText}`);
       } catch (error) {
-        elizaLogger.warn('Error using model for domain extraction, falling back to heuristics:', error);
+        elizaLogger.warn('Error using LLM for domain extraction, falling back to heuristics:', error);
       }
     }
     
+    // Final fallback: Simple keyword matching
+    const lowerQuery = query.toLowerCase();
+    const keywords = {
+      [ResearchDomain.PHYSICS]: ['quantum', 'physics', 'particle', 'relativity', 'thermodynamics'],
+      [ResearchDomain.COMPUTER_SCIENCE]: ['computer', 'software', 'algorithm', 'programming', 'ai', 'artificial intelligence', 'machine learning'],
+      [ResearchDomain.BIOLOGY]: ['biology', 'gene', 'cell', 'dna', 'evolution', 'organism'],
+      [ResearchDomain.MEDICINE]: ['medicine', 'health', 'disease', 'treatment', 'clinical', 'medical'],
+      [ResearchDomain.CHEMISTRY]: ['chemistry', 'chemical', 'molecule', 'synthesis', 'compound'],
+      [ResearchDomain.PSYCHOLOGY]: ['psychology', 'mental', 'behavior', 'cognitive', 'brain'],
+      [ResearchDomain.ECONOMICS]: ['economic', 'finance', 'market', 'currency', 'trade'],
+      [ResearchDomain.POLITICS]: ['political', 'government', 'policy', 'politics', 'governance']
+    };
+    
+    for (const [domain, words] of Object.entries(keywords)) {
+      if (words.some(word => lowerQuery.includes(word))) {
+        elizaLogger.info(`Domain classified via keywords: ${domain}`);
+        return domain as ResearchDomain;
+      }
+    }
+    
+    elizaLogger.info('Domain classified as GENERAL (no specific match found)');
     return ResearchDomain.GENERAL;
+  }
+  
+  private calculateCosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) return 0;
+    
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    
+    const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
+    return magnitude === 0 ? 0 : dotProduct / magnitude;
+  }
+  
+  private selectSearchProviders(domain: ResearchDomain, query: string): string[] {
+    const providers = new Set(['web']); // Always include web search
+    
+    // Add domain-specific providers
+    switch (domain) {
+      case ResearchDomain.COMPUTER_SCIENCE:
+      case ResearchDomain.ENGINEERING:
+        providers.add('github');
+        providers.add('academic');
+        // Add package managers if the query mentions specific languages/packages
+        if (query.toLowerCase().includes('python') || query.toLowerCase().includes('pip') || query.toLowerCase().includes('pypi')) {
+          providers.add('pypi');
+        }
+        if (query.toLowerCase().includes('javascript') || query.toLowerCase().includes('node') || query.toLowerCase().includes('npm')) {
+          providers.add('npm');
+        }
+        break;
+        
+      case ResearchDomain.PHYSICS:
+      case ResearchDomain.CHEMISTRY:
+      case ResearchDomain.BIOLOGY:
+      case ResearchDomain.MEDICINE:
+      case ResearchDomain.MATHEMATICS:
+        providers.add('academic');
+        break;
+        
+      case ResearchDomain.ECONOMICS:
+      case ResearchDomain.POLITICS:
+      case ResearchDomain.PSYCHOLOGY:
+        providers.add('academic');
+        break;
+        
+      default:
+        // For general research, include academic for scholarly sources
+        providers.add('academic');
+        
+        // Check for code-related keywords in any domain
+        if (query.toLowerCase().match(/(code|programming|software|library|package|framework|api)/)) {
+          providers.add('github');
+        }
+        if (query.toLowerCase().match(/(python|pip|pypi)/)) {
+          providers.add('pypi');
+        }
+        if (query.toLowerCase().match(/(javascript|typescript|node|npm)/)) {
+          providers.add('npm');
+        }
+        break;
+    }
+    
+    return Array.from(providers);
   }
 
   private async extractTaskType(query: string): Promise<TaskType> {
@@ -374,16 +558,23 @@ Respond with ONLY the task type (e.g., "analytical"). Be precise.`;
       project.status = ResearchStatus.ACTIVE;
       const startTime = Date.now();
 
-      // Phase 1: Planning
+      // Phase 1: Planning and Relevance Analysis
       await this.updatePhase(project, ResearchPhase.PLANNING);
+      
+      // Analyze query for relevance criteria
+      elizaLogger.info(`[ResearchService] Analyzing query relevance for: ${project.query}`);
+      const queryAnalysis = await this.relevanceAnalyzer.analyzeQueryRelevance(project.query);
+      
+      // Initialize comprehensive logging
+      await this.researchLogger.initializeSession(projectId, project.query, queryAnalysis);
 
-      // Phase 2: Searching
+      // Phase 2: Searching with Relevance Filtering
       await this.updatePhase(project, ResearchPhase.SEARCHING);
-      await this.executeSearch(project, config, controller.signal);
+      await this.executeSearchWithRelevance(project, config, controller.signal, queryAnalysis);
 
-      // Phase 3: Analyzing
+      // Phase 3: Analyzing with Relevance Verification
       await this.updatePhase(project, ResearchPhase.ANALYZING);
-      await this.analyzeFindings(project, config);
+      await this.analyzeFindingsWithRelevance(project, config, queryAnalysis);
 
       // Synthesize findings
       await this.updatePhase(project, ResearchPhase.SYNTHESIZING);
@@ -404,6 +595,10 @@ Respond with ONLY the task type (e.g., "analytical"). Be precise.`;
         }
       }
 
+      // Verify query answering and finalize logging
+      const queryAnswering = await this.relevanceAnalyzer.verifyQueryAnswering(project.findings, project.query);
+      await this.researchLogger.finalizeSession(projectId, queryAnswering.gaps, queryAnswering.recommendations);
+
       // Complete
       await this.updatePhase(project, ResearchPhase.COMPLETE);
       project.status = ResearchStatus.COMPLETED;
@@ -414,6 +609,15 @@ Respond with ONLY the task type (e.g., "analytical"). Be precise.`;
       if (project.metadata.performanceMetrics) {
         project.metadata.performanceMetrics.totalDuration = totalDuration;
       }
+
+      // Log final summary
+      elizaLogger.info(`[ResearchService] Research completed for project ${projectId}:`, {
+        duration: totalDuration,
+        sources: project.sources.length,
+        findings: project.findings.length,
+        relevantFindings: project.findings.filter(f => f.relevance >= 0.7).length,
+        queryAnswering: queryAnswering.coverage
+      });
     } catch (error) {
       if ((error as any).name === 'AbortError') {
         project.status = ResearchStatus.PAUSED;
@@ -469,10 +673,11 @@ Respond with ONLY the task type (e.g., "analytical"). Be precise.`;
     this.emitProgress(project, `Starting ${phase} phase`);
   }
 
-  private async executeSearch(
+  private async executeSearchWithRelevance(
     project: ResearchProject,
     config: ResearchConfig,
-    signal: AbortSignal
+    signal: AbortSignal,
+    queryAnalysis: any
   ): Promise<void> {
     const queryPlan = project.metadata.queryPlan;
     
@@ -490,7 +695,7 @@ Respond with ONLY the task type (e.g., "analytical"). Be precise.`;
     
     const allResults: SearchResult[] = [];
     
-    // Always search web sources
+    // Always search web sources with relevance scoring
     const webProvider = this.searchProviderFactory.getProvider('web');
     const webResults = await webProvider.search(queryPlan.mainQuery, config.maxSearchResults);
     allResults.push(...webResults);
@@ -506,9 +711,33 @@ Respond with ONLY the task type (e.g., "analytical"). Be precise.`;
       }
     }
     
-    // Deduplicate and sort by relevance
-    const uniqueResults = this.deduplicateResults(allResults);
-    const mainResults = uniqueResults.slice(0, config.maxSearchResults);
+    // Score search results for relevance BEFORE processing
+    elizaLogger.info(`[ResearchService] Scoring ${allResults.length} search results for relevance`);
+    const relevanceScores = new Map<string, any>();
+    
+    for (const result of allResults) {
+      if (signal.aborted) break;
+      const relevanceScore = await this.relevanceAnalyzer.scoreSearchResultRelevance(result, queryAnalysis);
+      relevanceScores.set(result.url, relevanceScore);
+    }
+    
+    // Log search results with relevance scores
+    await this.researchLogger.logSearch(
+      project.id, 
+      queryPlan.mainQuery, 
+      'web+academic', 
+      allResults, 
+      relevanceScores
+    );
+    
+    // Filter and sort by relevance score (minimum threshold 0.5)
+    const relevantResults = allResults
+      .filter(result => (relevanceScores.get(result.url)?.score || 0) >= 0.5)
+      .sort((a, b) => (relevanceScores.get(b.url)?.score || 0) - (relevanceScores.get(a.url)?.score || 0));
+    
+    const mainResults = relevantResults.slice(0, config.maxSearchResults);
+    
+    elizaLogger.info(`[ResearchService] Filtered to ${mainResults.length}/${allResults.length} relevant results (threshold >= 0.5)`);
 
     // Process main results
     for (const result of mainResults) {
@@ -571,6 +800,12 @@ Respond with ONLY the task type (e.g., "analytical"). Be precise.`;
     project: ResearchProject
   ): Promise<ResearchSource | null> {
     try {
+      // Skip error results from mock providers
+      if ((result.metadata as any)?.error === true) {
+        elizaLogger.warn(`[ResearchService] Skipping error result: ${result.title}`);
+        return null;
+      }
+      
       // Extract content if not already present
       let fullContent = result.content;
       if (!fullContent) {
@@ -784,27 +1019,28 @@ Format as JSON array:
 
     try {
       const responseContent = typeof response === 'string' ? response : (response as any).content || '';
+      
       // Try to extract JSON from the response
       const jsonMatch = responseContent.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        const findings = JSON.parse(jsonMatch[0]);
+        // Validate findings structure
+        if (Array.isArray(findings) && findings.length > 0) {
+          return findings;
+        }
       }
-      // Fallback: create a single finding from the snippet
-      return [{
-        content: content.substring(0, 200) + '...',
-        relevance: 0.7,
-        confidence: 0.6,
-        category: 'fact',
-      }];
+      
+      // If no valid JSON found, throw error instead of creating fake findings
+      throw new Error(`Failed to extract valid findings from LLM response. Response: ${responseContent.substring(0, 200)}`);
     } catch (e) {
-      elizaLogger.warn('[ResearchService] Failed to parse findings, using fallback');
-      // Fallback finding based on snippet
-      return [{
-        content: `From ${source.title}: ${content.substring(0, 200)}...`,
-        relevance: 0.7,
-        confidence: 0.6,
-        category: 'fact',
-      }];
+      elizaLogger.error('[ResearchService] Failed to extract findings from source:', {
+        sourceUrl: source.url,
+        error: e instanceof Error ? e.message : String(e),
+        contentLength: content.length
+      });
+      
+      // Return empty array instead of fake findings - let the caller handle the failure
+      return [];
     }
   }
 
@@ -1458,7 +1694,7 @@ ${project.sources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join('\n')}
       if (controller) {
         // Execute new queries
         const config = { ...DEFAULT_CONFIG, domain: project.metadata.domain };
-        await this.executeSearch(project, config, controller.signal);
+        await this.executeSearchWithRelevance(project, config, controller.signal, {});
       }
     }
   }
@@ -1506,6 +1742,240 @@ ${project.sources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join('\n')}
     const phases = Object.values(ResearchPhase);
     const currentIndex = phases.indexOf(project.phase);
     return (currentIndex / (phases.length - 1)) * 100;
+  }
+
+  private async analyzeFindingsWithRelevance(
+    project: ResearchProject,
+    config: ResearchConfig,
+    queryAnalysis: any
+  ): Promise<void> {
+    elizaLogger.info(`[ResearchService] Analyzing ${project.sources.length} sources with relevance verification`);
+    
+    for (const source of project.sources) {
+      // Use fullContent if available, otherwise fall back to snippet
+      const contentToAnalyze = source.fullContent || source.snippet || source.title;
+      
+      if (!contentToAnalyze) {
+        elizaLogger.warn(`[ResearchService] No content available for source: ${source.url}`);
+        await this.researchLogger.logContentExtraction(
+          project.id,
+          source.url,
+          source.title,
+          'none',
+          false,
+          0,
+          'No content available'
+        );
+        continue;
+      }
+
+      // Log content extraction success
+      await this.researchLogger.logContentExtraction(
+        project.id,
+        source.url,
+        source.title,
+        source.fullContent ? 'content-extractor' : 'snippet',
+        true,
+        contentToAnalyze.length
+      );
+
+      // Extract findings with relevance analysis
+      const findings = await this.extractFindingsWithRelevance(
+        source, 
+        project.query, 
+        contentToAnalyze, 
+        queryAnalysis
+      );
+
+      // Score findings for relevance
+      const findingRelevanceScores = new Map<string, any>();
+      for (const finding of findings) {
+        const relevanceScore = await this.relevanceAnalyzer.scoreFindingRelevance(
+          {
+            id: uuidv4(),
+            content: finding.content,
+            source,
+            relevance: finding.relevance,
+            confidence: finding.confidence,
+            timestamp: Date.now(),
+            category: finding.category,
+            citations: [],
+            factualClaims: [],
+            relatedFindings: [],
+            verificationStatus: VerificationStatus.PENDING,
+            extractionMethod: 'llm-extraction'
+          },
+          queryAnalysis,
+          project.query
+        );
+        findingRelevanceScores.set(finding.content, relevanceScore);
+      }
+
+      // Log finding extraction
+      await this.researchLogger.logFindingExtraction(
+        project.id,
+        source.url,
+        contentToAnalyze.length,
+        findings,
+        findingRelevanceScores
+      );
+
+      // Only keep findings with good relevance scores (>= 0.6)
+      const relevantFindings = findings.filter(finding => {
+        const relevanceScore = findingRelevanceScores.get(finding.content);
+        return (relevanceScore?.score || finding.relevance) >= 0.6;
+      });
+
+      elizaLogger.info(`[ResearchService] Kept ${relevantFindings.length}/${findings.length} relevant findings from ${source.title}`);
+
+      // Extract factual claims for relevant findings
+      const claims = await this.extractFactualClaims(source, contentToAnalyze);
+
+      // Create research findings with enhanced relevance information
+      for (const finding of relevantFindings) {
+        const relevanceScore = findingRelevanceScores.get(finding.content);
+        
+        const researchFinding: ResearchFinding = {
+          id: uuidv4(),
+          content: finding.content,
+          source,
+          relevance: relevanceScore?.score || finding.relevance,
+          confidence: finding.confidence,
+          timestamp: Date.now(),
+          category: finding.category,
+          citations: [],
+          factualClaims: claims.filter((c) =>
+            finding.content.toLowerCase().includes(c.statement.substring(0, 30).toLowerCase())
+          ),
+          relatedFindings: [],
+          verificationStatus: VerificationStatus.PENDING,
+          extractionMethod: source.fullContent ? 'llm-extraction-with-relevance' : 'snippet-extraction-with-relevance',
+        };
+
+        project.findings.push(researchFinding);
+      }
+    }
+
+    elizaLogger.info(`[ResearchService] Extracted ${project.findings.length} relevant findings`);
+
+    // Update quality score
+    const lastIteration =
+      project.metadata.iterationHistory[project.metadata.iterationHistory.length - 1];
+    if (lastIteration) {
+      lastIteration.findingsExtracted = project.findings.length;
+      lastIteration.qualityScore = this.calculateQualityScore(project);
+    }
+  }
+
+  private async extractFindingsWithRelevance(
+    source: ResearchSource,
+    query: string,
+    content: string,
+    queryAnalysis: any
+  ): Promise<Array<{ content: string; relevance: number; confidence: number; category: string }>> {
+    const prompt = `Extract key findings from this source that DIRECTLY address the research query.
+
+Research Query: "${query}"
+Query Intent: ${queryAnalysis.queryIntent}
+Key Topics: ${queryAnalysis.keyTopics.join(', ')}
+Required Elements: ${queryAnalysis.requiredElements.join(', ')}
+
+Source: ${source.title}
+URL: ${source.url}
+Content: ${content.substring(0, 3000)}...
+
+CRITICAL INSTRUCTIONS:
+1. Only extract findings that DIRECTLY relate to the research query
+2. Each finding must address at least one key topic or required element
+3. Rate relevance strictly - only high relevance should get scores > 0.7
+4. Focus on actionable insights that help answer the original question
+5. Avoid generic or tangential information
+
+For each finding:
+1. Extract the specific finding/insight that addresses the query
+2. Rate relevance to query (0-1) - be strict, only highly relevant content should score > 0.7
+3. Rate confidence in the finding (0-1)
+4. Categorize appropriately
+
+Format as JSON array:
+[{
+  "content": "specific finding that addresses the query",
+  "relevance": 0.9,
+  "confidence": 0.8,
+  "category": "fact"
+}]`;
+
+    elizaLogger.debug(`[ResearchService] Calling LLM for finding extraction:`, {
+      sourceTitle: source.title,
+      contentLength: content.length,
+      promptLength: prompt.length
+    });
+
+    const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a research analyst extracting only the most relevant findings that directly address the research query. Be strict about relevance.',
+        },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.3, // Lower temperature for more focused extraction
+    });
+
+    elizaLogger.debug(`[ResearchService] LLM response received:`, {
+      responseType: typeof response,
+      responseLength: response ? String(response).length : 0,
+      responsePreview: response ? String(response).substring(0, 200) : 'null'
+    });
+
+    try {
+      const responseContent = typeof response === 'string' ? response : (response as any).content || '';
+      
+      // Try to extract JSON from the response
+      const jsonMatch = responseContent.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const findings = JSON.parse(jsonMatch[0]);
+        // Validate findings structure and filter for quality
+        if (Array.isArray(findings) && findings.length > 0) {
+          // Additional filtering for relevance in the extraction phase
+          const relevantFindings = findings.filter(f => 
+            f.content && 
+            f.content.length > 20 && // Minimum content length
+            f.relevance >= 0.5 && // Minimum relevance threshold
+            f.category && 
+            typeof f.confidence === 'number'
+          );
+          
+          elizaLogger.debug(`[ResearchService] Extracted ${relevantFindings.length}/${findings.length} quality findings from ${source.title}`);
+          return relevantFindings;
+        }
+      }
+      
+      // If no valid JSON found, throw error instead of creating fake findings
+      throw new Error(`Failed to extract valid findings from LLM response. Response: ${responseContent.substring(0, 200)}`);
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      const errorStack = e instanceof Error ? e.stack : undefined;
+      
+      elizaLogger.error('[ResearchService] Failed to extract relevant findings from source:', {
+        sourceUrl: source.url,
+        sourceTitle: source.title,
+        error: errorMessage,
+        contentLength: content.length,
+        contentPreview: content.substring(0, 200),
+        stack: errorStack,
+        fullError: e
+      });
+      
+      console.error(`[DETAILED ERROR] Finding extraction failed for ${source.title}:`, {
+        error: errorMessage,
+        stack: errorStack,
+        contentLength: content.length
+      });
+      
+      // Return empty array instead of fake findings - let the caller handle the failure
+      return [];
+    }
   }
 
   // Service lifecycle methods
