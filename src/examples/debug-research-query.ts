@@ -3,13 +3,6 @@
  * Debug script to test research query handling
  */
 
-// Load environment variables from .env file
-import dotenv from 'dotenv';
-import path from 'path';
-
-// Load .env from the plugin-research directory
-dotenv.config({ path: path.join(__dirname, '../../.env') });
-
 import { ResearchService } from '../service';
 import { elizaLogger, IAgentRuntime } from '@elizaos/core';
 import { ResearchConfig, ResearchStatus } from '../types';

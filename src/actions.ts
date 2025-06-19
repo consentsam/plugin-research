@@ -17,6 +17,7 @@ import {
   ResearchDepth,
   ActionResult,
   ActionContext,
+  ResearchProject,
 } from './types';
 
 // Helper function to extract domain from text
@@ -531,7 +532,7 @@ export const getResearchReportAction: Action = {
     if (!researchService) return false;
 
     const projects = await researchService.getAllProjects();
-    return projects.some((p) => p.status === ResearchStatus.COMPLETED);
+    return projects.some((p: ResearchProject) => p.status === ResearchStatus.COMPLETED);
   },
 
   async handler(
@@ -548,7 +549,7 @@ export const getResearchReportAction: Action = {
 
     try {
       const allProjects = await researchService.getAllProjects();
-      const completedProjects = allProjects.filter((p) => p.status === ResearchStatus.COMPLETED);
+      const completedProjects = allProjects.filter((p: ResearchProject) => p.status === ResearchStatus.COMPLETED);
 
       if (completedProjects.length === 0) {
         return {
@@ -604,7 +605,7 @@ export const getResearchReportAction: Action = {
       // Add references
       reportText += `## References (${project.report.citations.length})\n\n`;
       const bibliography = project.report.bibliography || [];
-      bibliography.forEach((entry, idx) => {
+      bibliography.forEach((entry: any, idx: number) => {
         reportText += `${idx + 1}. ${entry.citation}\n`;
       });
 
@@ -667,7 +668,7 @@ export const evaluateResearchAction: Action = {
     if (!researchService) return false;
 
     const projects = await researchService.getAllProjects();
-    return projects.some((p) => p.status === ResearchStatus.COMPLETED && p.report);
+    return projects.some((p: ResearchProject) => p.status === ResearchStatus.COMPLETED && p.report);
   },
 
   async handler(
@@ -685,11 +686,11 @@ export const evaluateResearchAction: Action = {
     try {
       const allProjects = await researchService.getAllProjects();
       const evaluableProjects = allProjects.filter(
-        (p) => p.status === ResearchStatus.COMPLETED && p.report && !p.evaluationResults
+        (p: ResearchProject) => p.status === ResearchStatus.COMPLETED && p.report && !p.evaluationResults
       );
 
       if (evaluableProjects.length === 0) {
-        const alreadyEvaluated = allProjects.filter((p) => p.evaluationResults);
+        const alreadyEvaluated = allProjects.filter((p: ResearchProject) => p.evaluationResults);
         if (alreadyEvaluated.length > 0) {
           const project = alreadyEvaluated[alreadyEvaluated.length - 1];
           const evaluation = project.evaluationResults!;
@@ -753,7 +754,7 @@ export const evaluateResearchAction: Action = {
 - **Source Credibility:** ${(evaluation.factEvaluation.scores.sourceCredibility * 100).toFixed(1)}%
 
 ## Recommendations
-${evaluation.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}`,
+${evaluation.recommendations.map((r: string, i: number) => `${i + 1}. ${r}`).join('\n')}`,
         metadata: { project, evaluation },
       };
 
@@ -810,7 +811,7 @@ export const exportResearchAction: Action = {
     if (!researchService) return false;
 
     const projects = await researchService.getAllProjects();
-    return projects.some((p) => p.status === ResearchStatus.COMPLETED && p.report);
+    return projects.some((p: ResearchProject) => p.status === ResearchStatus.COMPLETED && p.report);
   },
 
   async handler(
@@ -834,7 +835,7 @@ export const exportResearchAction: Action = {
 
       const allProjects = await researchService.getAllProjects();
       const exportableProjects = allProjects.filter(
-        (p) => p.status === ResearchStatus.COMPLETED && p.report
+        (p: ResearchProject) => p.status === ResearchStatus.COMPLETED && p.report
       );
 
       if (exportableProjects.length === 0) {
@@ -928,7 +929,7 @@ export const compareResearchAction: Action = {
     if (!researchService) return false;
 
     const projects = await researchService.getAllProjects();
-    const completedProjects = projects.filter((p) => p.status === ResearchStatus.COMPLETED);
+    const completedProjects = projects.filter((p: ResearchProject) => p.status === ResearchStatus.COMPLETED);
     return completedProjects.length >= 2;
   },
 
@@ -946,7 +947,7 @@ export const compareResearchAction: Action = {
 
     try {
       const allProjects = await researchService.getAllProjects();
-      const completedProjects = allProjects.filter((p) => p.status === ResearchStatus.COMPLETED);
+      const completedProjects = allProjects.filter((p: ResearchProject) => p.status === ResearchStatus.COMPLETED);
 
       if (completedProjects.length < 2) {
         return {
@@ -959,7 +960,7 @@ export const compareResearchAction: Action = {
 
       // Get the most recent projects or specific ones mentioned
       const projectsToCompare = completedProjects.slice(-2);
-      const projectIds = projectsToCompare.map((p) => p.id);
+      const projectIds = projectsToCompare.map((p: ResearchProject) => p.id);
 
       const comparison = await researchService.compareProjects(projectIds);
 
@@ -967,7 +968,7 @@ export const compareResearchAction: Action = {
         text: `# Research Comparison
 
 ## Projects Compared:
-${projectsToCompare.map((p, i) => `${i + 1}. **${p.query}** (${p.metadata.domain})`).join('\n')}
+${projectsToCompare.map((p: ResearchProject, i: number) => `${i + 1}. **${p.query}** (${p.metadata.domain})`).join('\n')}
 
 ## Similarity Score: ${(comparison.similarity * 100).toFixed(1)}%
 
@@ -977,7 +978,7 @@ ${comparison.differences.map((d: string, i: number) => `${i + 1}. ${d}`).join('\
 ## Unique Insights:
 ${Object.entries(comparison.uniqueInsights)
   .map(([id, insights]) => {
-    const project = projectsToCompare.find((p) => p.id === id);
+    const project = projectsToCompare.find((p: ResearchProject) => p.id === id);
     return `\n**${project?.query}:**\n${(insights as string[]).map((insight, i) => `- ${insight}`).join('\n')}`;
   })
   .join('\n')}
@@ -1133,7 +1134,7 @@ export const resumeResearchAction: Action = {
     if (!researchService) return false;
 
     const allProjects = await researchService.getAllProjects();
-    return allProjects.some((p) => p.status === ResearchStatus.PAUSED);
+    return allProjects.some((p: ResearchProject) => p.status === ResearchStatus.PAUSED);
   },
 
   async handler(
@@ -1150,7 +1151,7 @@ export const resumeResearchAction: Action = {
 
     try {
       const allProjects = await researchService.getAllProjects();
-      const pausedProjects = allProjects.filter((p) => p.status === ResearchStatus.PAUSED);
+      const pausedProjects = allProjects.filter((p: ResearchProject) => p.status === ResearchStatus.PAUSED);
 
       if (pausedProjects.length === 0) {
         return {
@@ -1213,6 +1214,152 @@ The research will continue from where it left off.`,
   ] as ActionExample[][],
 };
 
+/**
+ * Cancel a research project
+ */
+export const cancelResearchAction: Action = {
+  name: 'cancel_research',
+  description: 'Cancel an active or paused research project',
+
+  async validate(runtime: IAgentRuntime, message: Memory, state?: State): Promise<boolean> {
+    const researchService = runtime.getService<ResearchService>('research');
+    if (!researchService) return false;
+
+    const allProjects = await researchService.getAllProjects();
+    return allProjects.some((p: ResearchProject) => 
+      p.status === ResearchStatus.ACTIVE || 
+      p.status === ResearchStatus.PAUSED ||
+      p.status === ResearchStatus.PENDING
+    );
+  },
+
+  async handler(
+    runtime: IAgentRuntime,
+    message: Memory,
+    state?: State,
+    options?: Record<string, unknown>,
+    callback?: HandlerCallback
+  ): Promise<ActionResult> {
+    const researchService = runtime.getService<ResearchService>('research');
+    if (!researchService) {
+      throw new Error('Research service not available');
+    }
+
+    try {
+      // Check for specific project ID in message
+      const projectIdMatch = message.content.text?.match(/project[:\s]+([a-zA-Z0-9-]+)/i);
+      let projectToCancel: any = null;
+
+      if (projectIdMatch) {
+        const projectId = projectIdMatch[1];
+        projectToCancel = await researchService.getProject(projectId);
+        
+        if (!projectToCancel) {
+          return {
+            success: false,
+            error: `Project ${projectId} not found`,
+            nextActions: ['check_research_status', 'start_research'],
+            metadata: {},
+          };
+        }
+      } else {
+        // Get all cancellable projects
+        const allProjects = await researchService.getAllProjects();
+        const cancellableProjects = allProjects.filter((p: ResearchProject) => 
+          p.status === ResearchStatus.ACTIVE || 
+          p.status === ResearchStatus.PAUSED ||
+          p.status === ResearchStatus.PENDING
+        );
+
+        if (cancellableProjects.length === 0) {
+          return {
+            success: false,
+            error: 'No active or paused research projects to cancel',
+            nextActions: ['check_research_status', 'start_research'],
+            metadata: {},
+          };
+        }
+
+        // Cancel the most recent cancellable project
+        projectToCancel = cancellableProjects[cancellableProjects.length - 1];
+      }
+
+      // Cancel the project by setting status to FAILED
+      projectToCancel.status = ResearchStatus.FAILED;
+      projectToCancel.error = 'Cancelled by user';
+      projectToCancel.updatedAt = Date.now();
+      
+      // Stop active research if running
+      await researchService.pauseResearch(projectToCancel.id);
+
+      const response = {
+        text: `Research project cancelled successfully.
+
+**Project:** ${projectToCancel.query}
+**Status was:** ${projectToCancel.status}
+**Phase was:** ${projectToCancel.phase}
+**Progress:** ${projectToCancel.sources.length} sources collected, ${projectToCancel.findings.length} findings extracted
+
+The project has been permanently cancelled and cannot be resumed.`,
+        metadata: { project: projectToCancel },
+      };
+
+      if (callback) await callback(response);
+
+      return {
+        success: true,
+        data: projectToCancel,
+        nextActions: ['start_research', 'check_research_status'],
+        metadata: { 
+          projectId: projectToCancel.id,
+          cancelledFrom: projectToCancel.status 
+        },
+      };
+    } catch (error) {
+      elizaLogger.error('Failed to cancel research:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        nextActions: ['check_research_status'],
+        metadata: {},
+      };
+    }
+  },
+
+  examples: [
+    [
+      {
+        name: '{{user}}',
+        content: {
+          text: 'Cancel the current research project',
+        },
+      },
+      {
+        name: '{{assistant}}',
+        content: {
+          text: "I'll cancel the active research project.",
+          action: 'cancel_research',
+        },
+      },
+    ],
+    [
+      {
+        name: '{{user}}',
+        content: {
+          text: 'Cancel project: abc-123-def',
+        },
+      },
+      {
+        name: '{{assistant}}',
+        content: {
+          text: "I'll cancel the specified research project.",
+          action: 'cancel_research',
+        },
+      },
+    ],
+  ] as ActionExample[][],
+};
+
 // Export all actions
 export const researchActions = [
   startResearchAction,
@@ -1224,6 +1371,7 @@ export const researchActions = [
   compareResearchAction,
   pauseResearchAction,
   resumeResearchAction,
+  cancelResearchAction,
 ];
 
 export const allResearchActions = researchActions;

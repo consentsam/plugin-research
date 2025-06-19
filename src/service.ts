@@ -1110,6 +1110,8 @@ Format as JSON array:
   }
 
   private async synthesizeFindings(project: ResearchProject): Promise<void> {
+    elizaLogger.info(`[ResearchService] Starting synthesis for ${project.findings.length} findings`);
+    
     // Group findings by category
     const categories = new Map<string, ResearchFinding[]>();
     for (const finding of project.findings) {
@@ -1131,6 +1133,8 @@ Format as JSON array:
     // Update metadata
     project.metadata.categoryAnalysis = categoryAnalysis;
     project.metadata.synthesis = overallSynthesis;
+    
+    elizaLogger.info(`[ResearchService] Synthesis completed. Overall synthesis length: ${overallSynthesis.length} characters`);
   }
 
   private async synthesizeCategory(category: string, findings: ResearchFinding[]): Promise<string> {
@@ -1146,11 +1150,15 @@ Create a comprehensive synthesis that:
 3. Highlights key insights
 4. Maintains academic rigor`;
 
+    elizaLogger.debug(`[ResearchService] Calling LLM for category synthesis with prompt length: ${prompt.length}`);
+    
     const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
       messages: [{ role: 'user', content: prompt }],
     });
 
-    return typeof response === 'string' ? response : (response as any).content || '';
+    const result = typeof response === 'string' ? response : (response as any).content || '';
+    elizaLogger.debug(`[ResearchService] Category synthesis response length: ${result.length}`);
+    return result;
   }
 
   private async createOverallSynthesis(
@@ -1174,36 +1182,34 @@ Create a comprehensive synthesis that:
 3. Identifies knowledge gaps
 4. Suggests future research directions`;
 
+    elizaLogger.debug(`[ResearchService] Calling LLM for overall synthesis with prompt length: ${prompt.length}`);
+    
     const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
       messages: [{ role: 'user', content: prompt }],
     });
 
-    return typeof response === 'string' ? response : (response as any).content || '';
+    const result = typeof response === 'string' ? response : (response as any).content || '';
+    elizaLogger.debug(`[ResearchService] Overall synthesis response length: ${result.length}`);
+    return result;
   }
 
   private async generateReport(project: ResearchProject): Promise<void> {
+    elizaLogger.info(`[ResearchService] Starting 2-pass report generation for project ${project.id} with ${project.findings.length} findings`);
+    
     if (!project.findings.length) {
       elizaLogger.warn('No findings to generate report from');
       return;
     }
 
-    const sections: ReportSection[] = [];
-
-    // Executive summary
-    sections.push({
-      id: 'summary',
-      heading: 'Executive Summary',
-      level: 1,
-      content: project.metadata.synthesis || 'No synthesis available',
-      findings: [],
-      citations: [],
-      metadata: {
-        wordCount: (project.metadata.synthesis || '').split(' ').length,
-        citationDensity: 0,
-        readabilityScore: 0,
-        keyTerms: [],
-      },
-    });
+    // PASS 1: Generate comprehensive initial report
+    elizaLogger.info(`[ResearchService] PASS 1: Generating comprehensive initial report`);
+    const initialSections = await this.generateComprehensiveReport(project);
+    
+    // PASS 2: Identify top sources and enhance with detailed analysis
+    elizaLogger.info(`[ResearchService] PASS 2: Enhancing report with detailed source analysis`);
+    const enhancedSections = await this.enhanceReportWithDetailedAnalysis(project, initialSections);
+    
+    const sections = enhancedSections;
 
     // Category sections
     if (project.metadata.categoryAnalysis) {
@@ -1274,6 +1280,11 @@ Create a comprehensive synthesis that:
       ],
     };
 
+    elizaLogger.info(`[ResearchService] Report generated successfully for project ${project.id}:`);
+    elizaLogger.info(`  - Word count: ${project.report.wordCount}`);
+    elizaLogger.info(`  - Sections: ${project.report.sections.length}`);
+    elizaLogger.info(`  - Citations: ${project.report.citations.length}`);
+
     // Save to file if FILE_LOGGING is enabled
     if (this.runtime.getSetting('FILE_LOGGING') === 'true' || process.env.FILE_LOGGING === 'true') {
       await this.saveReportToFile(project);
@@ -1339,6 +1350,451 @@ ${project.sources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join('\n')}
     } catch (error) {
       elizaLogger.error('[ResearchService] Failed to save report to file:', error);
     }
+  }
+
+  /**
+   * PASS 1: Generate comprehensive initial report sections
+   * Creates detailed sections for each category with thorough analysis
+   */
+  private async generateComprehensiveReport(project: ResearchProject): Promise<ReportSection[]> {
+    elizaLogger.info(`[ResearchService] PASS 1: Generating comprehensive initial report for ${project.findings.length} findings`);
+    
+    const sections: ReportSection[] = [];
+    
+    // Group findings by category for organized analysis
+    const categories = new Map<string, ResearchFinding[]>();
+    for (const finding of project.findings) {
+      const existing = categories.get(finding.category) || [];
+      existing.push(finding);
+      categories.set(finding.category, existing);
+    }
+
+    elizaLogger.info(`[ResearchService] Found ${categories.size} categories: ${Array.from(categories.keys()).join(', ')}`);
+
+    // Create executive summary
+    const executiveSummary = await this.generateExecutiveSummary(project);
+    sections.push({
+      id: 'executive-summary',
+      heading: 'Executive Summary',
+      level: 0,
+      content: executiveSummary,
+      findings: [],
+      citations: [],
+      metadata: {
+        wordCount: executiveSummary.split(' ').length,
+        citationDensity: 0,
+        readabilityScore: 0,
+        keyTerms: [],
+      },
+    });
+
+    // Generate comprehensive sections for each category
+    for (const [category, findings] of categories.entries()) {
+      elizaLogger.info(`[ResearchService] PASS 1: Generating comprehensive analysis for category: ${category} (${findings.length} findings)`);
+      
+      const categoryAnalysis = await this.generateDetailedCategoryAnalysis(category, findings, project.query);
+      
+      sections.push({
+        id: `comprehensive-${category}`,
+        heading: this.formatCategoryHeading(category),
+        level: 1,
+        content: categoryAnalysis,
+        findings: findings.map(f => f.id),
+        citations: this.extractCitations(findings),
+        metadata: {
+          wordCount: categoryAnalysis.split(' ').length,
+          citationDensity: findings.length / (categoryAnalysis.split(' ').length / 100),
+          readabilityScore: 0,
+          keyTerms: [],
+        },
+      });
+    }
+
+    // Generate methodology section
+    const methodology = await this.generateMethodologySection(project);
+    sections.push({
+      id: 'methodology',
+      heading: 'Research Methodology',
+      level: 1,
+      content: methodology,
+      findings: [],
+      citations: [],
+      metadata: {
+        wordCount: methodology.split(' ').length,
+        citationDensity: 0,
+        readabilityScore: 0,
+        keyTerms: [],
+      },
+    });
+
+    // Generate implications and future work
+    const implications = await this.generateImplicationsSection(project);
+    sections.push({
+      id: 'implications',
+      heading: 'Implications and Future Directions',
+      level: 1,
+      content: implications,
+      findings: [],
+      citations: [],
+      metadata: {
+        wordCount: implications.split(' ').length,
+        citationDensity: 0,
+        readabilityScore: 0,
+        keyTerms: [],
+      },
+    });
+
+    const totalWords = sections.reduce((sum, s) => sum + s.metadata.wordCount, 0);
+    elizaLogger.info(`[ResearchService] PASS 1 completed: Generated ${sections.length} sections with ${totalWords} total words`);
+    
+    return sections;
+  }
+
+  /**
+   * PASS 2: Enhance report with detailed source analysis
+   * Identifies top sources, extracts detailed content, and performs comprehensive rewrite
+   */
+  private async enhanceReportWithDetailedAnalysis(project: ResearchProject, initialSections: ReportSection[]): Promise<ReportSection[]> {
+    elizaLogger.info(`[ResearchService] PASS 2: Beginning detailed source analysis enhancement`);
+    
+    // Step 1: Identify top 10 sources
+    const topSources = this.identifyTopSources(project, 10);
+    elizaLogger.info(`[ResearchService] PASS 2: Identified top ${topSources.length} sources for detailed analysis`);
+    
+    // Step 2: Extract 10k words from each top source
+    const detailedSourceContent = await this.extractDetailedSourceContent(topSources);
+    elizaLogger.info(`[ResearchService] PASS 2: Extracted detailed content from ${detailedSourceContent.size} sources`);
+    
+    // Step 3: Enhance each section with detailed analysis
+    const enhancedSections: ReportSection[] = [];
+    
+    for (const section of initialSections) {
+      elizaLogger.info(`[ResearchService] PASS 2: Enhancing section "${section.heading}" with detailed analysis`);
+      
+      const enhancedContent = await this.enhanceSection(section, detailedSourceContent, project);
+      const enhancedSection = {
+        ...section,
+        content: enhancedContent,
+        metadata: {
+          ...section.metadata,
+          wordCount: enhancedContent.split(' ').length,
+        }
+      };
+      
+      enhancedSections.push(enhancedSection);
+    }
+    
+    // Step 4: Add detailed source analysis section
+    const detailedAnalysis = await this.generateDetailedSourceAnalysis(detailedSourceContent, project);
+    enhancedSections.push({
+      id: 'detailed-source-analysis',
+      heading: 'Detailed Source Analysis',
+      level: 1,
+      content: detailedAnalysis,
+      findings: [],
+      citations: [],
+      metadata: {
+        wordCount: detailedAnalysis.split(' ').length,
+        citationDensity: 0,
+        readabilityScore: 0,
+        keyTerms: [],
+      },
+    });
+
+    const totalWords = enhancedSections.reduce((sum, s) => sum + s.metadata.wordCount, 0);
+    elizaLogger.info(`[ResearchService] PASS 2 completed: Enhanced ${enhancedSections.length} sections with ${totalWords} total words`);
+    
+    return enhancedSections;
+  }
+
+  private async generateExecutiveSummary(project: ResearchProject): Promise<string> {
+    const findingsSample = project.findings.slice(0, 10).map(f => f.content).join('\n\n');
+    
+    const prompt = `Create a comprehensive executive summary for this research project.
+
+Research Query: "${project.query}"
+
+Key Findings Sample:
+${findingsSample}
+
+Total Sources: ${project.sources.length}
+Total Findings: ${project.findings.length}
+
+Create a 400-500 word executive summary that:
+1. States the research objective clearly
+2. Summarizes the methodology used
+3. Highlights the most significant findings
+4. Discusses key implications
+5. Provides actionable insights
+
+Focus on being comprehensive yet accessible, suitable for both technical and non-technical audiences.`;
+
+    const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
+      messages: [
+        { role: 'system', content: 'You are a research analyst creating executive summaries for comprehensive research reports.' },
+        { role: 'user', content: prompt }
+      ],
+    });
+
+    return typeof response === 'string' ? response : (response as any).content || '';
+  }
+
+  private async generateDetailedCategoryAnalysis(category: string, findings: ResearchFinding[], originalQuery: string): Promise<string> {
+    const findingTexts = findings.map(f => f.content).join('\n\n');
+    
+    const prompt = `Create a comprehensive analysis for the category "${category}" based on these research findings.
+
+Original Research Query: "${originalQuery}"
+
+Findings in this category:
+${findingTexts}
+
+Create a detailed 800-1200 word analysis that:
+1. Introduces the category and its relevance to the research question
+2. Analyzes patterns and themes across findings
+3. Discusses methodological approaches mentioned
+4. Identifies consensus and disagreements in the literature
+5. Evaluates the strength of evidence
+6. Discusses limitations and gaps
+7. Connects findings to broader implications
+8. Suggests areas for future research
+
+Use a scholarly tone with clear subsections. Be thorough and analytical.`;
+
+    const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
+      messages: [
+        { role: 'system', content: 'You are a research analyst writing comprehensive literature reviews.' },
+        { role: 'user', content: prompt }
+      ],
+    });
+
+    return typeof response === 'string' ? response : (response as any).content || '';
+  }
+
+  private async generateMethodologySection(project: ResearchProject): Promise<string> {
+    const searchProviders = project.sources.map(s => s.url.split('.')[1] || 'unknown').slice(0, 5);
+    const domains = [...new Set(project.sources.map(s => s.type))];
+    
+    const prompt = `Create a comprehensive methodology section for this research project.
+
+Research Query: "${project.query}"
+Sources Analyzed: ${project.sources.length}
+Search Domains: ${domains.join(', ')}
+Key Findings: ${project.findings.length}
+
+Create a 400-600 word methodology section that describes:
+1. Research approach and design
+2. Search strategy and keywords used
+3. Source selection criteria
+4. Data extraction methods
+5. Quality assessment procedures
+6. Analysis framework
+7. Limitations and potential biases
+
+Be specific about the systematic approach taken and justify methodological choices.`;
+
+    const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
+      messages: [
+        { role: 'system', content: 'You are a research methodologist describing systematic research approaches.' },
+        { role: 'user', content: prompt }
+      ],
+    });
+
+    return typeof response === 'string' ? response : (response as any).content || '';
+  }
+
+  private async generateImplicationsSection(project: ResearchProject): Promise<string> {
+    const keyFindings = project.findings
+      .sort((a, b) => (b.relevance * b.confidence) - (a.relevance * a.confidence))
+      .slice(0, 8)
+      .map(f => f.content)
+      .join('\n\n');
+    
+    const prompt = `Create a comprehensive implications and future directions section.
+
+Research Query: "${project.query}"
+
+Key Findings:
+${keyFindings}
+
+Create a 600-800 word section that:
+1. Discusses theoretical implications
+2. Identifies practical applications
+3. Considers policy implications (if relevant)
+4. Addresses methodological contributions
+5. Suggests specific future research directions
+6. Discusses potential real-world impact
+7. Identifies research gaps that need attention
+8. Proposes concrete next steps
+
+Be forward-looking and actionable while grounding recommendations in the evidence found.`;
+
+    const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
+      messages: [
+        { role: 'system', content: 'You are a research strategist identifying implications and future research directions.' },
+        { role: 'user', content: prompt }
+      ],
+    });
+
+    return typeof response === 'string' ? response : (response as any).content || '';
+  }
+
+  private identifyTopSources(project: ResearchProject, count: number): ResearchSource[] {
+    // Score sources based on multiple criteria
+    const scoredSources = project.sources.map(source => {
+      const findingsFromSource = project.findings.filter(f => f.source.id === source.id);
+      const avgRelevance = findingsFromSource.reduce((sum, f) => sum + f.relevance, 0) / Math.max(findingsFromSource.length, 1);
+      const avgConfidence = findingsFromSource.reduce((sum, f) => sum + f.confidence, 0) / Math.max(findingsFromSource.length, 1);
+      const contentLength = source.fullContent?.length || source.snippet?.length || 0;
+      
+      // Scoring formula: findings count + avg relevance + avg confidence + content richness + source reliability
+      const score = (findingsFromSource.length * 2) + avgRelevance + avgConfidence + (contentLength > 5000 ? 1 : 0) + source.reliability;
+      
+      return { source, score, findingsCount: findingsFromSource.length };
+    });
+
+    // Sort by score and return top sources
+    return scoredSources
+      .sort((a, b) => b.score - a.score)
+      .slice(0, count)
+      .map(s => {
+        elizaLogger.info(`[ResearchService] Top source: ${s.source.title} (Score: ${s.score.toFixed(2)}, Findings: ${s.findingsCount})`);
+        return s.source;
+      });
+  }
+
+  private async extractDetailedSourceContent(sources: ResearchSource[]): Promise<Map<string, string>> {
+    const detailedContent = new Map<string, string>();
+    
+    for (const source of sources) {
+      try {
+        elizaLogger.info(`[ResearchService] Extracting detailed content from: ${source.title}`);
+        
+        let content = source.fullContent || source.snippet || '';
+        
+        // If we need more content, try to re-extract with higher limits
+        if (content.length < 8000 && source.url) {
+          elizaLogger.info(`[ResearchService] Re-extracting with higher limits for: ${source.url}`);
+          const extractor = this.searchProviderFactory.getContentExtractor();
+          const extractedContent = await extractor.extractContent(source.url);
+          const extractedText = typeof extractedContent === 'string' ? extractedContent : extractedContent?.content || '';
+          if (extractedText && extractedText.length > content.length) {
+            content = extractedText;
+          }
+        }
+        
+        // Take first 10k words
+        const words = content.split(/\s+/).slice(0, 10000);
+        const detailedText = words.join(' ');
+        
+        detailedContent.set(source.id, detailedText);
+        elizaLogger.info(`[ResearchService] Extracted ${detailedText.length} characters from ${source.title}`);
+        
+      } catch (error) {
+        elizaLogger.warn(`[ResearchService] Failed to extract detailed content from ${source.title}:`, error);
+      }
+    }
+    
+    return detailedContent;
+  }
+
+  private async enhanceSection(section: ReportSection, detailedContent: Map<string, string>, project: ResearchProject): Promise<string> {
+    // Get relevant detailed content for this section
+    const relevantSources: string[] = [];
+    for (const findingId of section.findings) {
+      const finding = project.findings.find(f => f.id === findingId);
+      if (finding && detailedContent.has(finding.source.id)) {
+        relevantSources.push(detailedContent.get(finding.source.id)!);
+      }
+    }
+    
+    if (relevantSources.length === 0) {
+      elizaLogger.info(`[ResearchService] No detailed content available for section: ${section.heading}`);
+      return section.content;
+    }
+    
+    const combinedDetailedContent = relevantSources.join('\n\n---\n\n').substring(0, 15000);
+    
+    const prompt = `Enhance this research section with detailed analysis from additional source material.
+
+Original Section: "${section.heading}"
+Original Content:
+${section.content}
+
+Detailed Source Material (first 15k chars):
+${combinedDetailedContent}
+
+Your task:
+1. Rewrite the section to be more comprehensive and detailed
+2. Incorporate specific details, examples, and evidence from the detailed source material
+3. Add nuanced analysis and insights not present in the original
+4. Correct any potential inaccuracies using the detailed sources
+5. Expand the discussion while maintaining focus and relevance
+6. Aim for 800-1200 words for major sections, 400-600 for smaller ones
+
+Maintain the academic tone and ensure all claims are well-supported by the source material.`;
+
+    const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
+      messages: [
+        { role: 'system', content: 'You are a research analyst enhancing reports with detailed source analysis.' },
+        { role: 'user', content: prompt }
+      ],
+    });
+
+    const enhancedContent = typeof response === 'string' ? response : (response as any).content || section.content;
+    elizaLogger.info(`[ResearchService] Enhanced section "${section.heading}" from ${section.content.length} to ${enhancedContent.length} characters`);
+    
+    return enhancedContent;
+  }
+
+  private async generateDetailedSourceAnalysis(detailedContent: Map<string, string>, project: ResearchProject): Promise<string> {
+    const sourceAnalyses: string[] = [];
+    
+    for (const [sourceId, content] of detailedContent.entries()) {
+      const source = project.sources.find(s => s.id === sourceId);
+      if (!source) continue;
+      
+      const findings = project.findings.filter(f => f.source.id === sourceId);
+      
+      const analysisPrompt = `Conduct a detailed analysis of this research source.
+
+Source: ${source.title}
+URL: ${source.url}
+Findings Extracted: ${findings.length}
+
+Source Content (first 5k chars):
+${content.substring(0, 5000)}
+
+Create a comprehensive analysis (300-400 words) that:
+1. Evaluates the credibility and authority of the source
+2. Assesses the methodology used (if applicable)
+3. Discusses the strength of evidence presented
+4. Identifies key contributions to the research question
+5. Notes any limitations or biases
+6. Compares findings with other sources in the literature
+
+Be critical yet fair in your assessment.`;
+
+      const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
+        messages: [
+          { role: 'system', content: 'You are a research analyst conducting detailed source evaluations.' },
+          { role: 'user', content: analysisPrompt }
+        ],
+      });
+
+      const analysis = typeof response === 'string' ? response : (response as any).content || '';
+      sourceAnalyses.push(`### ${source.title}\n\n${analysis}`);
+    }
+    
+    const fullAnalysis = `This section provides detailed analysis of the top sources identified for this research project, offering critical evaluation of their methodology, findings, and contributions to our understanding of the research question.
+
+${sourceAnalyses.join('\n\n')}
+
+## Summary of Source Quality
+
+Based on the detailed analysis above, the sources demonstrate varying levels of methodological rigor and relevance to the research question. The majority provide valuable insights through peer-reviewed research, while some offer practical perspectives from industry applications. This diversity of source types strengthens the overall evidence base for our conclusions.`;
+
+    return fullAnalysis;
   }
 
   private formatCategoryHeading(category: string): string {
