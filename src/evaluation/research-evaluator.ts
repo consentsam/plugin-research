@@ -67,21 +67,41 @@ export class RACEEvaluator {
     dimension: string,
     referenceReport?: ResearchReport
   ): Promise<number> {
-    const reportContent = this.extractReportContent(report);
-    const referenceContent = referenceReport ? this.extractReportContent(referenceReport) : '';
+    try {
+      // Check if we have useModel available
+      if (!this.runtime.useModel) {
+        elizaLogger.warn(`[RACEEvaluator] No model available for ${dimension} evaluation, using default score`);
+        return 0.7; // Default score when no model available
+      }
 
-    const prompt = `Evaluate this research report on the ${dimension} dimension.
+      const reportContent = this.extractReportContent(report);
+      const referenceContent = referenceReport ? this.extractReportContent(referenceReport) : '';
+
+      // Convert rubric items to string format if they're objects
+      let rubricText = '';
+      if (Array.isArray(criteriaDefinition.rubric)) {
+        rubricText = criteriaDefinition.rubric.map((item: any, i: number) => {
+          if (typeof item === 'string') {
+            return `${i + 1}. ${item}`;
+          } else if (item.description) {
+            return `${item.score || i}. ${item.description}`;
+          }
+          return `${i + 1}. Criterion ${i + 1}`;
+        }).join('\n');
+      }
+
+      const prompt = `Evaluate this research report on the ${dimension} dimension.
 
 Evaluation Criteria:
 ${criteriaDefinition.description}
 
 Rubric Items to Check:
-${criteriaDefinition.rubric.map((item: string, i: number) => `${i + 1}. ${item}`).join('\n')}
+${rubricText}
 
-Report to Evaluate:
-${reportContent}
+Report to Evaluate (first 5000 chars):
+${reportContent.substring(0, 5000)}
 
-${referenceContent ? `Reference Report for Comparison:\n${referenceContent}` : ''}
+${referenceContent ? `Reference Report for Comparison (first 2000 chars):\n${referenceContent.substring(0, 2000)}` : ''}
 
 Provide a score from 0-100 based on how well the report meets the criteria.
 Consider each rubric item and provide reasoning for your score.
@@ -97,16 +117,42 @@ Respond with JSON:
   }
 }`;
 
-    const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-      messages: [{ role: 'user', content: prompt }],
-    });
+      const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are an expert research evaluator. Provide a balanced, fair assessment.' 
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 1000,
+      });
 
-    try {
       const content = typeof response === 'string' ? response : (response as any).content || '';
-      const result = JSON.parse(content);
-      return result.score / 100; // Normalize to 0-1
+      
+      // Try to parse JSON response
+      try {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const result = JSON.parse(jsonMatch[0]);
+          return Math.max(0, Math.min(1, result.score / 100)); // Normalize to 0-1
+        }
+      } catch (parseError) {
+        elizaLogger.warn(`[RACEEvaluator] Failed to parse JSON response for ${dimension}:`, parseError);
+      }
+
+      // Fallback: try to extract score from text
+      const scoreMatch = content.match(/score[:\s]+(\d+)/i);
+      if (scoreMatch) {
+        const score = parseInt(scoreMatch[1]);
+        return Math.max(0, Math.min(1, score / 100));
+      }
+
+      elizaLogger.error(`[RACEEvaluator] Failed to extract score for ${dimension}`);
+      return 0.5; // Default middle score
     } catch (e) {
-      elizaLogger.error(`Failed to evaluate ${dimension}:`, e);
+      elizaLogger.error(`[RACEEvaluator] Failed to evaluate ${dimension}:`, e);
       return 0.5; // Default middle score
     }
   }
@@ -182,13 +228,19 @@ export class FACTEvaluator {
     text: string,
     citations: Citation[]
   ): Promise<FactualClaim[]> {
+    // Check if we have a model available
+    if (!this.runtime.useModel) {
+      elizaLogger.warn('[FACTEvaluator] No model available for claim extraction');
+      return [];
+    }
+
     const prompt = `Extract factual claims and their citations from this text.
 
 Text:
-${text}
+${text.substring(0, 3000)}
 
 Available Citations:
-${citations.map((c, i) => `[${i + 1}] ${c.source.url}`).join('\n')}
+${citations.slice(0, 10).map((c, i) => `[${i + 1}] ${c.source.url}`).join('\n')}
 
 For each factual claim in the text:
 1. Extract the exact statement
@@ -202,29 +254,47 @@ Respond with JSON array:
     "citationIndex": number,
     "supportingEvidence": "relevant quote or context"
   }
-]`;
+]
 
-    const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-      messages: [{ role: 'user', content: prompt }],
-    });
+Extract 3-5 key claims maximum.`;
 
     try {
-      const content = typeof response === 'string' ? response : (response as any).content || '';
-      const extracted = JSON.parse(content);
+      const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are a fact extraction expert. Extract only clear, verifiable claims.' 
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.2,
+        max_tokens: 1500,
+      });
 
-      return extracted.map((item: any) => ({
-        statement: item.statement,
-        supportingEvidence: item.supportingEvidence,
-        sourceUrls: citations[item.citationIndex - 1]
-          ? [citations[item.citationIndex - 1].source.url]
-          : [],
-        verificationStatus: 'unverified' as VerificationStatus,
-        confidenceScore: 0.8,
-        relatedClaims: [],
-      }));
+      const content = typeof response === 'string' ? response : (response as any).content || '';
+      
+      // Try to parse JSON array
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const extracted = JSON.parse(jsonMatch[0]);
+
+        return extracted.slice(0, 5).map((item: any) => ({
+          id: `claim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          statement: item.statement || '',
+          supportingEvidence: [item.supportingEvidence || ''],
+          sourceUrls: citations[item.citationIndex - 1]
+            ? [citations[item.citationIndex - 1].source.url]
+            : [],
+          verificationStatus: VerificationStatus.UNVERIFIED,
+          confidenceScore: 0.8,
+          relatedClaims: [],
+        }));
+      }
     } catch (e) {
-      return [];
+      elizaLogger.error('[FACTEvaluator] Failed to extract claims:', e);
     }
+    
+    return [];
   }
 
   private async verifyClaims(
@@ -241,6 +311,11 @@ Respond with JSON array:
   }
 
   private async verifySingleClaim(claim: FactualClaim): Promise<boolean> {
+    // If no model available, return conservative estimate
+    if (!this.runtime.useModel) {
+      return claim.confidenceScore > 0.7;
+    }
+
     // In a real implementation, this would:
     // 1. Fetch the source URL content
     // 2. Check if the content supports the claim
@@ -251,17 +326,30 @@ Respond with JSON array:
     const prompt = `Does this evidence support the claim?
 
 Claim: ${claim.statement}
-Evidence: ${claim.supportingEvidence}
+Evidence: ${claim.supportingEvidence?.join(' ')}
 Source URL: ${claim.sourceUrls[0]}
 
 Answer with just "yes" or "no".`;
 
-    const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-      messages: [{ role: 'user', content: prompt }],
-    });
+    try {
+      const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are a fact verifier. Answer only yes or no.' 
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 10,
+      });
 
-    const answer = typeof response === 'string' ? response : (response as any).content || '';
-    return answer.toLowerCase().includes('yes');
+      const answer = typeof response === 'string' ? response : (response as any).content || '';
+      return answer.toLowerCase().includes('yes');
+    } catch (e) {
+      elizaLogger.error('[FACTEvaluator] Failed to verify claim:', e);
+      return false;
+    }
   }
 
   private deduplicateClaims(

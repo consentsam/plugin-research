@@ -327,6 +327,42 @@ Perform comprehensive gap analysis:
    - Estimated impact on research quality
 
 Format as actionable gap-filling strategy.`,
+
+  /**
+   * Claim Extraction - Extract verifiable claims from text
+   */
+  CLAIM_EXTRACTION: `Extract specific, verifiable claims from the following text.
+
+Text: "{text}"
+
+Number of available sources: {sourceCount}
+
+Extract claims that are:
+1. SPECIFIC and factual (not vague statements)
+2. VERIFIABLE against sources
+3. IMPORTANT to the topic
+
+For each claim, provide:
+- statement: The exact claim being made
+- confidence: Confidence level (0-1)
+- sources: URLs of sources that might support this
+- evidence: Key supporting evidence snippets
+- category: Category of the claim
+
+Return as JSON:
+{
+  "claims": [
+    {
+      "statement": "specific factual claim",
+      "confidence": 0.8,
+      "sources": ["url1", "url2"],
+      "evidence": ["supporting snippet 1", "supporting snippet 2"],
+      "category": "category name"
+    }
+  ]
+}
+
+Extract at least 5-10 key claims from the text.`,
 };
 
 /**

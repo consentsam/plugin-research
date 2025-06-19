@@ -45,6 +45,8 @@ import {
 } from './types';
 import fs from 'fs/promises';
 import path from 'path';
+import { ClaimVerifier } from './verification/claim-verifier';
+import { RESEARCH_PROMPTS, formatPrompt, getPromptConfig } from './prompts/research-prompts';
 
 // Factory for creating search providers and content extractors
 class SearchProviderFactory {
@@ -109,6 +111,7 @@ export class ResearchService extends Service {
   private relevanceAnalyzer: RelevanceAnalyzer;
   private researchLogger: ResearchLogger;
   private performanceData: Map<string, PerformanceMetrics> = new Map();
+  private claimVerifier: ClaimVerifier;
 
   static serviceName = 'research';
   public serviceName = 'research';
@@ -143,6 +146,10 @@ export class ResearchService extends Service {
       prioritizeRecent: true,
       diversityWeight: 0.3,
     });
+    this.claimVerifier = new ClaimVerifier(
+      runtime, 
+      this.searchProviderFactory.getContentExtractor()
+    );
   }
 
   async createResearchProject(
@@ -1194,101 +1201,221 @@ Create a comprehensive synthesis that:
   }
 
   private async generateReport(project: ResearchProject): Promise<void> {
-    elizaLogger.info(`[ResearchService] Starting 2-pass report generation for project ${project.id} with ${project.findings.length} findings`);
-    
-    if (!project.findings.length) {
-      elizaLogger.warn('No findings to generate report from');
-      return;
-    }
+    try {
+      elizaLogger.info(`[ResearchService] Generating comprehensive report for project ${project.id}`);
 
-    // PASS 1: Generate comprehensive initial report
-    elizaLogger.info(`[ResearchService] PASS 1: Generating comprehensive initial report`);
-    const initialSections = await this.generateComprehensiveReport(project);
-    
-    // PASS 2: Identify top sources and enhance with detailed analysis
-    elizaLogger.info(`[ResearchService] PASS 2: Enhancing report with detailed source analysis`);
-    const enhancedSections = await this.enhanceReportWithDetailedAnalysis(project, initialSections);
-    
-    const sections = enhancedSections;
+      // Use new prompt templates for better structure
+      const queryAnalysis = await this.analyzeQueryForReport(project);
+      
+      // Step 1: Generate initial comprehensive report
+      const initialSections = await this.generateComprehensiveReport(project);
 
-    // Category sections
-    if (project.metadata.categoryAnalysis) {
-      for (const [category, analysis] of Object.entries(project.metadata.categoryAnalysis)) {
-        const categoryFindings = project.findings.filter((f) => f.category === category);
+      // Step 2: Extract and verify claims from initial report
+      const claims = await this.extractClaimsFromReport(initialSections, project);
+      const verificationResults = await this.verifyClaimsWithSources(claims, project);
 
-        sections.push({
-          id: `cat-${category}`,
-          heading: this.formatCategoryHeading(category),
-          level: 1,
-          content: analysis,
-          findings: categoryFindings.map((f) => f.id),
-          citations: this.extractCitations(categoryFindings),
-          metadata: {
-            wordCount: analysis.split(' ').length,
-            citationDensity: categoryFindings.length / (analysis.split(' ').length / 100),
-            readabilityScore: 0,
-            keyTerms: [],
+      // Step 3: Enhance report with verification results and detailed analysis
+      const enhancedSections = await this.enhanceReportWithDetailedAnalysis(
+        project, 
+        initialSections,
+        verificationResults
+      );
+
+      // Step 4: Add executive summary and finalize
+      const executiveSummary = await this.generateExecutiveSummary(project, verificationResults);
+      
+      // Build final report with citations and bibliography
+      const fullReport = this.buildFinalReport(executiveSummary, enhancedSections, project);
+
+      // Build proper ResearchReport structure
+      const wordCount = fullReport.split(' ').length;
+      const readingTime = Math.ceil(wordCount / 200);
+
+      project.report = {
+        id: uuidv4(),
+        title: `Research Report: ${project.query}`,
+        abstract: executiveSummary.substring(0, 300) + '...',
+        summary: executiveSummary,
+        sections: enhancedSections,
+        citations: this.extractAllCitations(project),
+        bibliography: this.createBibliography(project),
+        generatedAt: Date.now(),
+        wordCount,
+        readingTime,
+        evaluationMetrics: {
+          raceScore: {
+            overall: 0,
+            comprehensiveness: 0,
+            depth: 0,
+            instructionFollowing: 0,
+            readability: 0,
+            breakdown: [],
           },
+          factScore: {
+            citationAccuracy: 0,
+            effectiveCitations: 0,
+            totalCitations: 0,
+            verifiedCitations: 0,
+            disputedCitations: 0,
+            citationCoverage: 0,
+            sourceCredibility: 0,
+            breakdown: [],
+          },
+          timestamp: Date.now(),
+          evaluatorVersion: '1.0',
+        },
+        exportFormats: [
+          { format: 'json', generated: false },
+          { format: 'markdown', generated: false },
+          { format: 'deepresearch', generated: false },
+        ],
+      };
+
+      // Save to file
+      await this.saveReportToFile(project);
+
+      elizaLogger.info('[ResearchService] Report generation complete');
+    } catch (error) {
+      elizaLogger.error('[ResearchService] Report generation failed:', error);
+      throw error;
+    }
+  }
+
+  private async analyzeQueryForReport(project: ResearchProject): Promise<any> {
+    const prompt = formatPrompt(RESEARCH_PROMPTS.QUERY_ANALYSIS, { query: project.query });
+    
+    const config = getPromptConfig('analysis');
+    const response = await this.runtime.useModel(config.modelType, {
+      messages: [
+        { role: 'system', content: 'You are an expert research analyst.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: config.temperature,
+      max_tokens: config.maxTokens,
+    });
+
+    try {
+      const content = typeof response === 'string' ? response : response.content || '';
+      return JSON.parse(content);
+    } catch {
+      return { query: project.query, concepts: [], dimensions: [] };
+    }
+  }
+
+  private async extractClaimsFromReport(
+    sections: ReportSection[], 
+    project: ResearchProject
+  ): Promise<FactualClaim[]> {
+    const claims: FactualClaim[] = [];
+    
+    for (const section of sections) {
+      const sectionClaims = await this.extractClaimsFromText(section.content, project.sources);
+      claims.push(...sectionClaims);
+    }
+    
+    return claims;
+  }
+
+  private async extractClaimsFromText(
+    text: string, 
+    sources: ResearchSource[]
+  ): Promise<FactualClaim[]> {
+    const prompt = formatPrompt(RESEARCH_PROMPTS.CLAIM_EXTRACTION, { 
+      text,
+      sourceCount: sources.length 
+    });
+    
+    const config = getPromptConfig('extraction');
+    const response = await this.runtime.useModel(config.modelType, {
+      messages: [
+        { role: 'system', content: 'Extract specific, verifiable claims from the text.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: config.temperature,
+      max_tokens: config.maxTokens,
+    });
+
+    try {
+      const content = typeof response === 'string' ? response : response.content || '';
+      const extractedClaims = JSON.parse(content).claims || [];
+      
+      return extractedClaims.map((claim: any) => ({
+        statement: claim.statement,
+        confidence: claim.confidence || 0.5,
+        sourceUrls: claim.sources || [],
+        supportingEvidence: claim.evidence || [],
+        category: claim.category || 'general'
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private async verifyClaimsWithSources(
+    claims: FactualClaim[], 
+    project: ResearchProject
+  ): Promise<Map<string, any>> {
+    const verificationResults = new Map();
+    
+    // Group claims by primary source for efficient verification
+    const claimsBySource = new Map<string, FactualClaim[]>();
+    
+    for (const claim of claims) {
+      const primaryUrl = claim.sourceUrls[0];
+      if (primaryUrl) {
+        if (!claimsBySource.has(primaryUrl)) {
+          claimsBySource.set(primaryUrl, []);
+        }
+        claimsBySource.get(primaryUrl)!.push(claim);
+      }
+    }
+    
+    // Verify claims batch by source
+    for (const [sourceUrl, sourceClaims] of claimsBySource) {
+      const source = project.sources.find(s => s.url === sourceUrl);
+      if (source) {
+        const results = await this.claimVerifier.batchVerifyClaims(
+          sourceClaims.map(claim => ({ claim, primarySource: source })),
+          project.sources
+        );
+        
+        results.forEach((result, index) => {
+          verificationResults.set(sourceClaims[index].statement, result);
         });
       }
     }
+    
+    return verificationResults;
+  }
 
-    // Create bibliography
-    const bibliography = this.createBibliography(project);
+  private buildFinalReport(
+    executiveSummary: string,
+    sections: ReportSection[],
+    project: ResearchProject
+  ): string {
+    const reportParts = [
+      `# ${project.query}`,
+      `\n_Generated on ${new Date().toISOString()}_\n`,
+      `## Executive Summary\n\n${executiveSummary}\n`,
+    ];
 
-    // Calculate metrics
-    const wordCount = sections.reduce((sum, s) => sum + s.metadata.wordCount, 0);
-    const readingTime = Math.ceil(wordCount / 200); // 200 words per minute
-
-    project.report = {
-      id: uuidv4(),
-      title: `Research Report: ${project.query}`,
-      abstract: project.metadata.synthesis?.substring(0, 300) + '...' || '',
-      summary: project.metadata.synthesis || '',
-      sections,
-      citations: this.extractAllCitations(project),
-      bibliography,
-      generatedAt: Date.now(),
-      wordCount,
-      readingTime,
-      evaluationMetrics: {
-        raceScore: {
-          overall: 0,
-          comprehensiveness: 0,
-          depth: 0,
-          instructionFollowing: 0,
-          readability: 0,
-          breakdown: [],
-        },
-        factScore: {
-          citationAccuracy: 0,
-          effectiveCitations: 0,
-          totalCitations: 0,
-          verifiedCitations: 0,
-          disputedCitations: 0,
-          citationCoverage: 0,
-          sourceCredibility: 0,
-          breakdown: [],
-        },
-        timestamp: Date.now(),
-        evaluatorVersion: '1.0',
-      },
-      exportFormats: [
-        { format: 'json', generated: false },
-        { format: 'markdown', generated: false },
-        { format: 'deepresearch', generated: false },
-      ],
-    };
-
-    elizaLogger.info(`[ResearchService] Report generated successfully for project ${project.id}:`);
-    elizaLogger.info(`  - Word count: ${project.report.wordCount}`);
-    elizaLogger.info(`  - Sections: ${project.report.sections.length}`);
-    elizaLogger.info(`  - Citations: ${project.report.citations.length}`);
-
-    // Save to file if FILE_LOGGING is enabled
-    if (this.runtime.getSetting('FILE_LOGGING') === 'true' || process.env.FILE_LOGGING === 'true') {
-      await this.saveReportToFile(project);
+    // Add main sections
+    for (const section of sections) {
+      reportParts.push(`## ${section.heading}\n\n${section.content}\n`);
     }
+
+    // Add methodology section
+    const methodology = this.generateMethodologySection(project);
+    reportParts.push(`## Research Methodology\n\n${methodology}\n`);
+
+    // Add references
+    reportParts.push('## References\n');
+    const bibliography = this.createBibliography(project);
+    bibliography.forEach((entry, idx) => {
+      reportParts.push(`${idx + 1}. ${entry.citation}`);
+    });
+
+    return reportParts.join('\n');
   }
 
   private async saveReportToFile(project: ResearchProject): Promise<void> {
@@ -1372,7 +1499,7 @@ ${project.sources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join('\n')}
     elizaLogger.info(`[ResearchService] Found ${categories.size} categories: ${Array.from(categories.keys()).join(', ')}`);
 
     // Create executive summary
-    const executiveSummary = await this.generateExecutiveSummary(project);
+    const executiveSummary = await this.generateExecutiveSummary(project, new Map());
     sections.push({
       id: 'executive-summary',
       heading: 'Executive Summary',
@@ -1454,7 +1581,7 @@ ${project.sources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join('\n')}
    * PASS 2: Enhance report with detailed source analysis
    * Identifies top sources, extracts detailed content, and performs comprehensive rewrite
    */
-  private async enhanceReportWithDetailedAnalysis(project: ResearchProject, initialSections: ReportSection[]): Promise<ReportSection[]> {
+  private async enhanceReportWithDetailedAnalysis(project: ResearchProject, initialSections: ReportSection[], verificationResults: Map<string, any>): Promise<ReportSection[]> {
     elizaLogger.info(`[ResearchService] PASS 2: Beginning detailed source analysis enhancement`);
     
     // Step 1: Identify top 10 sources
@@ -1507,7 +1634,7 @@ ${project.sources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join('\n')}
     return enhancedSections;
   }
 
-  private async generateExecutiveSummary(project: ResearchProject): Promise<string> {
+  private async generateExecutiveSummary(project: ResearchProject, verificationResults: Map<string, any>): Promise<string> {
     const findingsSample = project.findings.slice(0, 10).map(f => f.content).join('\n\n');
     
     const prompt = `Create a comprehensive executive summary for this research project.

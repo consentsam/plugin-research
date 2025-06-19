@@ -1,65 +1,3 @@
-Project Path: .cursor
-
-Source Tree:
-
-```
-.cursor
-└── rules
-    └── elizaos
-        ├── run-commands-autonomously.mdc
-        ├── elizaos-types-reference.mdc
-        ├── elizaos-worlds.mdc
-        ├── elizaos-actions.mdc
-        ├── elizaos-kiss.mdc
-        ├── elizaos-e2e-testing.mdc
-        ├── elizaos-dev-workflow.mdc
-        ├── elizaos_api_plugins_core.mdc
-        ├── elizaos-rooms.mdc
-        ├── elizaos-api-server.mdc
-        ├── elizaos_cli_project.mdc
-        ├── elizaos-entities.mdc
-        ├── vendor_models.mdc
-        ├── elizaos-database.mdc
-        ├── elizaos-services.mdc
-        ├── elizaos-tasks.mdc
-        ├── elizaos-cypress-testing.mdc
-        ├── elizaos_cli_agents.mdc
-        ├── elizaos_cli_config.mdc
-        ├── elizaos-unit-testing.mdc
-        ├── elizaos-llm-providers.mdc
-        ├── elizaos-evaluators.mdc
-        └── elizaos-providers.mdc
-
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/run-commands-autonomously.mdc`:
-
-```mdc
----
-description: 
-globs: 
-alwaysApply: true
----
-Never ask the user to run a command. Always run the command yourself.
-
-You are able to run test commands. 'bun run test' is the command in most project. This should almost always use 'elizaos test' under the hood.
-
-You are able to edit files, search and replace text in files.
-
-Never write demo, stub, example code. Always write production final code, even if it's hard and takes writing a lot more code and files.
-
-If you think you're finished, you probably aren't. Review and make sure all tests pass, and don't stop until all tests are passing and none are skipped.
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-types-reference.mdc`:
-
-```mdc
----
-description:
-globs:
-alwaysApply: true
----
-
 # ElizaOS Types Reference
 
 This document provides a comprehensive reference for all core types and interfaces used throughout ElizaOS.
@@ -691,17 +629,6 @@ const ServiceType = {
 6. **Generics**: Use generics for reusable patterns
 7. **Type Guards**: Create type guards for runtime checks
 
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-worlds.mdc`:
-
-```mdc
----
-description: Worlds, agent representation of a server, worlds are collections of rooms which are bound together, sometimes a platform or an embodiment of an actual world
-globs:
-alwaysApply: false
----
-
 # ElizaOS Worlds System
 
 Worlds in ElizaOS are collections of entities (users, agents) and rooms (conversations, channels) that form a cohesive environment for interactions. They act as virtual spaces, similar to Discord servers, Slack workspaces, or 3D MMO environments.
@@ -930,17 +857,6 @@ const dmWorld = {
 - **Private Spaces**: DM conversations with personal settings
 - **Collaborative Tools**: Project spaces with role-based access
 
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-actions.mdc`:
-
-```mdc
----
-description: Action, tool, workflow, agent actions, action processing, when the agent wants to perform an action or do something, or can call an action because the user requested it, autonomous action calling
-globs:
-alwaysApply: false
----
-
 # ElizaOS Actions System
 
 Actions define how agents respond to and interact with messages. They are the core components that define an agent's capabilities and enable complex behaviors through action chaining.
@@ -1115,36 +1031,17 @@ const processAction: Action = {
 - **PROCESS_DATA**: Data transformation
 - **MULTI_STEP**: Complex workflows
 
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-kiss.mdc`:
-
-```mdc
----
-description: 
-globs: 
-alwaysApply: true
----
 KEEP IT SIMPLE!
 
 Always implement real working code, never examples or shortcuts-- those just cause problems in the future.
 
 If you're not sure, ask me about something, I know a lot about the system.
 
-Don't create new files unless you need to. Revise existing files whenever possible. It makes cleanup much easier in the future. Instead of creating a _v2.ts, just update the v1.
+Don't create new files unless you need to. Revise existing files whenever possible. It makes cleanup much easier in the future. Instead of creating a \_v2.ts, just update the v1.
 
 IF you write docs, store them in the /docs folder
 
 If you save logs, store them in the /logs folder
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-e2e-testing.mdc`:
-
-```mdc
----
-title: ElizaOS End-to-End Runtime Testing Guide
-alwaysApply: true
----
 
 # ElizaOS End-to-End Runtime Testing
 
@@ -1635,43 +1532,11 @@ const promises = messages.map(async (msg) => {
 await Promise.all(promises);
 ```
 
-## Summary
-
-ElizaOS E2E tests provide a powerful way to verify agent behavior in a real runtime environment. By following these patterns and best practices, you can create comprehensive test suites that ensure your agents and plugins work correctly with actual language processing, database operations, and service interactions.
-
 Remember: **No mocks, real runtime, throw errors to fail.**
-
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-dev-workflow.mdc`:
-
-```mdc
----
-description: ElizaOS comprehensive development workflow emphasizing research, planning, and thorough testing
-globs: **/*
-alwaysApply: true
----
-
-> You are an expert developer on the ElizaOS project, following a structured and test-driven development workflow to ensure high-quality contributions.
 
 # ElizaOS Standard Development Workflow
 
 This document outlines the comprehensive process for building, testing, and contributing to the ElizaOS project. Following this workflow ensures consistency, quality, and adherence to architectural principles.
-
-```mermaid
-graph TD
-    A[1. Research Existing Codebase] --> B[2. Write Detailed PRD];
-    B --> C[3. Create Implementation Plan];
-    C --> D{Evaluate 3+ Approaches};
-    D --> E[Select Optimal Solution];
-    E --> F[4. Implement Production Code];
-    F --> G[5. Fix Tests Until All Pass];
-    G --> H[6. Critical Review];
-    H --> I{Code Meets Standards?};
-    I -->|No| J[Design New Implementation];
-    J --> F;
-    I -->|Yes| K[Complete];
-```
 
 ## Step 1: Research Existing Codebase
 
@@ -1945,59 +1810,9 @@ After the critical review, loop through these steps until the code is production
 - **Ignoring Edge Cases**: Every edge case matters in production
 - **Accepting "Good Enough"**: Always strive for optimal, not average
 
-## Summary
-
-This workflow ensures that every contribution to ElizaOS is thoroughly researched, well-planned, properly implemented, and rigorously tested. By following these steps and maintaining high standards throughout, we create robust, user-friendly features that enhance the platform's capabilities while maintaining stability and performance.
-
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos_api_plugins_core.mdc`:
-
-```mdc
----
-description: ElizaOS Core Plugin Architecture, how plugins are implemented
-globs: 
-alwaysApply: false
----
-> You are an expert in the ElizaOS plugin architecture, focusing on core concepts, lifecycle, and best practices for creating robust and interoperable plugins.
-
 ## Core Plugin Architecture
 
 The ElizaOS plugin system is the primary mechanism for extending agent capabilities. A plugin is a self-contained module that can register various components with the `AgentRuntime`. The runtime acts as the central nervous system, managing the lifecycle and interactions of these components.
-
-```mermaid
-graph TD
-    subgraph "Initialization Phase"
-        A[AgentRuntime.initialize()] --> B{Resolve Plugin Dependencies};
-        B --> C(Topologically Sort Plugins);
-        C --> D(For each plugin in order...);
-        D --> E[runtime.registerPlugin(plugin)];
-    end
-
-    subgraph "Plugin Registration (within registerPlugin)"
-        E --> F[plugin.init(runtime)];
-        F --> G[Register Components];
-        G --> H(Actions);
-        G --> I(Providers);
-        G --> J(Services);
-        G --> K(Models);
-        G --> L(Evaluators);
-        G --> M(Events);
-        G --> N(Routes);
-    end
-
-    subgraph "Runtime Operation"
-        O[Incoming Message/Event] --> P[AgentRuntime];
-        P -->|Uses Provider for context| I;
-        P -->|Selects & runs Action| H;
-        P -->|Calls Service logic| J;
-        P -->|Uses Model for generation| K;
-        P -->|Triggers Evaluator| L;
-        P -->|Emits Event to handlers| M;
-    end
-
-    Q[External HTTP Request] --> N;
-```
 
 ## The `Plugin` Interface: The Heart of a Plugin
 
@@ -2017,7 +1832,7 @@ export interface Plugin {
 
   // A list of other plugin *names* that must be loaded before this one.
   dependencies?: string[];
-  
+
   // A priority number for ordering. Higher numbers load first within the dependency graph.
   priority?: number;
 
@@ -2034,7 +1849,7 @@ export interface Plugin {
 
   // Evaluators run *after* an interaction to process the outcome (e.g., for memory or learning).
   evaluators?: Evaluator[];
-  
+
   // Model handlers provide implementations for different AI model types (e.g., text generation).
   models?: { [key: string]: (...args: any[]) => Promise<any> };
 
@@ -2048,12 +1863,12 @@ export interface Plugin {
 
   // Custom HTTP routes to expose a web API or UI from the agent server.
   routes?: Route[];
-  
+
   // A suite of E2E or unit tests, runnable via `elizaos test`.
   tests?: TestSuite[];
 
   // Default configuration values for the plugin.
-  config?: { [key:string]: any };
+  config?: { [key: string]: any };
 }
 ```
 
@@ -2062,7 +1877,7 @@ export interface Plugin {
 The `AgentRuntime` manages a sophisticated plugin lifecycle to ensure stability and correct ordering.
 
 1.  **Dependency Resolution**: When `runtime.initialize()` is called, it first looks at the `plugins` array in the agent's `Character` definition. It then recursively scans the `dependencies` array of each of these plugins, building a complete graph of all required plugins.
-2.  **Topological Sort**: The runtime performs a topological sort on the dependency graph. This creates a linear loading order where every plugin is guaranteed to be loaded *after* its dependencies have been loaded. `priority` is used as a secondary sorting factor.
+2.  **Topological Sort**: The runtime performs a topological sort on the dependency graph. This creates a linear loading order where every plugin is guaranteed to be loaded _after_ its dependencies have been loaded. `priority` is used as a secondary sorting factor.
 3.  **Registration**: The runtime iterates through the sorted list and calls `runtime.registerPlugin()` for each plugin.
 4.  **Initialization (`init`)**: The `init` function of the plugin is the first thing called within `registerPlugin`. This is the critical "setup" phase. It is the only place you can be certain that all dependency plugins (and their services) are available.
 5.  **Component Registration**: After `init` completes successfully, the runtime registers all other capabilities (`actions`, `providers`, etc.) from the plugin object, making them available to the rest of the system.
@@ -2090,12 +1905,12 @@ export class AgentRuntime implements IAgentRuntime {
     if (plugin.init) {
       await plugin.init(plugin.config || {}, this);
     }
-    
+
     // Then, register all other components
     if (plugin.services) {
-        for (const service of plugin.services) {
-            await this.registerService(service);
-        }
+      for (const service of plugin.services) {
+        await this.registerService(service);
+      }
     }
     if (plugin.actions) {
       for (const action of plugin.actions) {
@@ -2110,7 +1925,9 @@ export class AgentRuntime implements IAgentRuntime {
 ## Deep Dive: Plugin Components
 
 ### Services
+
 Services are singleton classes that manage long-running processes or state. They are the backbone for complex plugins.
+
 - **Definition**: A `Service` is a class with a static `start` method.
 - **Lifecycle**: `Service.start(runtime)` is called during plugin registration. The returned instance is stored in `runtime.services`.
 - **Access**: Other components access services via `runtime.getService<T>('service_name')`.
@@ -2125,20 +1942,30 @@ export class MyCacheService extends Service {
   // The start method is the factory for the service instance
   static async start(runtime: IAgentRuntime): Promise<MyCacheService> {
     const instance = new MyCacheService(runtime);
-    runtime.logger.info("MyCacheService started.");
+    runtime.logger.info('MyCacheService started.');
     return instance;
   }
-  
-  public get(key: string) { return this.cache.get(key); }
-  public set(key: string, value: any) { this.cache.set(key, value); }
-  
-  async stop(): Promise<void> { this.cache.clear(); }
-  public get capabilityDescription(): string { return "An in-memory cache."; }
+
+  public get(key: string) {
+    return this.cache.get(key);
+  }
+  public set(key: string, value: any) {
+    this.cache.set(key, value);
+  }
+
+  async stop(): Promise<void> {
+    this.cache.clear();
+  }
+  public get capabilityDescription(): string {
+    return 'An in-memory cache.';
+  }
 }
 ```
 
 ### Actions
-Actions define what an agent *can do*. They are the primary way to give an agent capabilities.
+
+Actions define what an agent _can do_. They are the primary way to give an agent capabilities.
+
 - **Definition**: An `Action` object contains a `name`, `description`, `validate` function, and `handler` function.
 - **Lifecycle**: After the LLM selects an action, its `handler` is executed.
 - **Use Case**: `send-email`, `transfer-funds`, `query-database`.
@@ -2161,12 +1988,14 @@ export const sendTweetAction: Action = {
   async validate(runtime, message, state) {
     const twitterService = runtime.getService('twitter');
     return !!twitterService; // Only available if the twitter service is running.
-  }
+  },
 };
 ```
 
 ### Providers
+
 Providers inject contextual information into the agent's "state" before the LLM makes a decision. They are the agent's senses.
+
 - **Definition**: A `Provider` object has a `name` and a `get` function.
 - **Lifecycle**: The `get` function of all registered (non-private) providers is called by `runtime.composeState()` before invoking the main LLM.
 - **Use Case**: `CURRENT_TIME`, `RECENT_MESSAGES`, `ACCOUNT_BALANCE`, `WORLD_STATE`.
@@ -2185,36 +2014,28 @@ export const accountBalanceProvider: Provider = {
 
     return {
       text: `[ACCOUNT BALANCE]\n${text}\n[/ACCOUNT BALANCE]`,
-      values: { // This data can be used by other components
+      values: {
+        // This data can be used by other components
         solBalance: balance,
-      }
+      },
     };
   },
 };
 ```
 
 ## Best Practices
+
 - **Explicit Dependencies**: Always declare `dependencies` to ensure correct load order. The runtime does not guarantee service availability otherwise.
 - **Fail Fast**: In your `init` function, check for required configuration (e.g., API keys via `runtime.getSetting()`) and throw an error if something critical is missing. This prevents the agent from running in a broken state.
 - **Scoped Logic**: Keep your plugin focused. A single plugin should manage one core piece of functionality (e.g., one API integration, one protocol).
 - **Use Services for State**: Avoid global variables. If you need to maintain state (like a connection object, cache, or user session), encapsulate it within a `Service`.
 
 ## References
-- [Core Types (`Plugin`, `Action`, `Provider` etc.)](mdc:packages/core/src/types.ts)
-- [Agent Runtime Implementation](mdc:packages/core/src/runtime.ts)
-- [Example: SQL Plugin](mdc:packages/plugin-sql/src/index.ts)
-- [Example: Bootstrap Plugin](mdc:packages/plugin-message-handling/src/index.ts)
 
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-rooms.mdc`:
-
-```mdc
----
-description: Rooms are an agent abstraction for the agent to track entities in a room, which could be a channel on a message server or a room in a 3D world platform. Rooms have participants, and all messages are tied to rooms, even autonomous messages.
-globs:
-alwaysApply: false
----
+- [Core Types (`Plugin`, `Action`, `Provider` etc.)](packages/core/src/types.ts)
+- [Agent Runtime Implementation](packages/core/src/runtime.ts)
+- [Example: SQL Plugin](packages/plugin-sql/src/index.ts)
+- [Example: Bootstrap Plugin](packages/plugin-message-handling/src/index.ts)
 
 # ElizaOS Rooms System
 
@@ -2489,7 +2310,7 @@ const voiceRoom = {
 
 ### Social Feed Room
 
-```typescript
+````typescript
 const feedRoom = {
   id: createUniqueUuid(runtime, `${userId}-feed`),
   name: `${userName}'s Feed`,
@@ -2497,18 +2318,6 @@ const feedRoom = {
   type: ChannelType.FEED,
   worldId: userWorldId,
 };
-```
-
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-api-server.mdc`:
-
-```mdc
----
-description: API servers, API services, backend routes, Express, HTTP REST, Websocket communications, anything bacend, simulating a real messaging server, connecting frontend to backend
-globs:
-alwaysApply: false
----
 
 # ElizaOS API Server
 
@@ -2526,7 +2335,7 @@ class AgentServer {
   socketIO: SocketIOServer; // Socket.IO server
   database: DatabaseAdapter; // Database connection
 }
-```
+````
 
 ### Initialization Flow
 
@@ -3169,66 +2978,6 @@ Access via: `/api/my-route?agentId=UUID`
 9. **Monitor rate limits** to avoid blocking
 10. **Use authentication** in production environments
 
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos_cli_project.mdc`:
-
-```mdc
----
-description: ElizaOS CLI Project and Project Loading
-globs: 
-alwaysApply: false
----
-> You are an expert in the ElizaOS CLI, focusing on project management, configuration, and development workflows. You produce clear, comprehensive documentation and examples using the latest CLI features and best practices.
-
-## ElizaOS Project Architecture
-
-```mermaid
-graph TD
-    A[Start: elizaos create] --> B{Project Type?};
-    B -->|Project| C[Create Project Directory];
-    B -->|Plugin| D[Create Plugin Directory];
-    B -->|Agent| E[Create Character .json];
-
-    C --> F{Database?};
-    F -->|PGLite| G[Setup PGLite in .elizadb];
-    F -->|Postgres| H[Prompt for POSTGRES_URL];
-    
-    C --> I{AI Model?};
-    I -->|Local| J[Use Local AI];
-    I -->|OpenAI| K[Prompt for OPENAI_API_KEY];
-    I -->|Claude| L[Prompt for ANTHROPIC_API_KEY];
-
-    subgraph "Project Setup"
-        direction LR
-        G --> M[Copy project-starter template];
-        H --> M;
-        J --> M;
-        K --> M;
-        L --> M;
-        M --> N[Install Dependencies];
-        N --> O[Build Project];
-    end
-    
-    D --> P[Copy plugin-starter template];
-    P --> Q[Install Dependencies];
-    Q --> R[Build Plugin];
-
-    subgraph "Execution"
-        direction LR
-        S[elizaos start] --> T{Detect Dir Type};
-        T -->|Project| U[Load Project Agents];
-        T -->|Plugin| V[Load Default Agent + Plugin];
-        U --> W[Start AgentServer];
-        V --> W;
-        E --> X[elizaos agent start --path <file>];
-        X --> W;
-    end
-    
-    O --> S;
-    R --> S;
-```
-
 ## Project Structure
 
 A standard ElizaOS project has the following structure, created by `elizaos create`.
@@ -3275,6 +3024,7 @@ elizaos create .
 ```
 
 The interactive `create` command will guide you through:
+
 1.  **Choosing a type**: Project, Plugin, or Agent.
 2.  **Naming**: Providing a valid npm package name.
 3.  **Database Selection**: Choosing between PGLite (development) and PostgreSQL (production).
@@ -3400,77 +3150,82 @@ elizaos create my-ci-plugin --type plugin --yes
 ```
 
 This will create a project/plugin with default settings:
-*   **Database**: PGLite
-*   **AI Model**: Local AI
+
+- **Database**: PGLite
+- **AI Model**: Local AI
 
 Placeholders for API keys will be added to the `.env` file, which you can then populate using environment variables in your CI/CD system.
 
 ## References
-- [ElizaOS CLI Documentation](mdc:https:/eliza.how/docs/cli)
-- [Managing Agents](mdc:elizaos_v2_cli_agents.mdc)
-- [Project Configuration](mdc:elizaos_v2_cli_config.mdc)
+
+- [ElizaOS CLI Documentation](https:/eliza.how/docs/cli)
+- [Managing Agents](elizaos_v2_cli_agents.mdc)
+- [Project Configuration](elizaos_v2_cli_config.mdc)
 
       throw new ProjectValidationError(
         `Command must be run inside an ElizaOS project directory. ` +
         `Current directory: ${getDirectoryTypeDescription(directoryInfo)}`
       );
-    }
-    
-    // Normalize plugin name and resolve package
-    const normalizedName = normalizePluginNameForDisplay(pluginArg);
-    const packageName = await resolvePluginPackage(pluginArg, opts);
-    
-    console.log(`Installing plugin: ${normalizedName}`);
-    
-    // Install plugin with dependency resolution
-    await installPlugin(packageName, {
-      branch: opts.branch,
-      tag: opts.tag,
-      skipEnvPrompt: opts.noEnvPrompt,
-      cwd
-    });
-    
-    // Update project configuration
-    await updateProjectConfig(cwd, packageName);
-    
-    console.log(`✅ Plugin ${normalizedName} installed successfully`);
+
+  }
+
+  // Normalize plugin name and resolve package
+  const normalizedName = normalizePluginNameForDisplay(pluginArg);
+  const packageName = await resolvePluginPackage(pluginArg, opts);
+
+  console.log(`Installing plugin: ${normalizedName}`);
+
+  // Install plugin with dependency resolution
+  await installPlugin(packageName, {
+  branch: opts.branch,
+  tag: opts.tag,
+  skipEnvPrompt: opts.noEnvPrompt,
+  cwd
+  });
+
+  // Update project configuration
+  await updateProjectConfig(cwd, packageName);
+
+  console.log(`✅ Plugin ${normalizedName} installed successfully`);
   });
 
 // Plugin removal with cleanup
 plugins
-  .command('remove')
-  .alias('delete')
-  .description('Remove a plugin from the project')
-  .argument('<plugin>', 'Plugin name to remove')
-  .action(async (pluginArg: string) => {
-    const cwd = process.cwd();
-    const allDependencies = getDependenciesFromDirectory(cwd);
-    
+.command('remove')
+.alias('delete')
+.description('Remove a plugin from the project')
+.argument('<plugin>', 'Plugin name to remove')
+.action(async (pluginArg: string) => {
+const cwd = process.cwd();
+const allDependencies = getDependenciesFromDirectory(cwd);
+
     if (!allDependencies) {
       throw new ProjectValidationError('Could not read project dependencies');
     }
-    
+
     const packageName = findPluginPackageName(pluginArg, allDependencies);
-    
+
     if (!packageName) {
       throw new PluginNotFoundError(`Plugin "${pluginArg}" not found in dependencies`);
     }
-    
+
     // Remove plugin and clean up configuration
     await removePlugin(packageName, cwd);
     await cleanupPluginConfig(cwd, packageName);
-    
+
     console.log(`✅ Plugin ${pluginArg} removed successfully`);
-  });
+
+});
 
 // ❌ DON'T: Install plugins without validation or proper error handling
 plugins
-  .command('bad-add')
-  .action(async (plugin: string) => {
-    // No validation, no dependency resolution, no error handling
-    await execa('npm', ['install', plugin]);
-  });
-```
+.command('bad-add')
+.action(async (plugin: string) => {
+// No validation, no dependency resolution, no error handling
+await execa('npm', ['install', plugin]);
+});
+
+````
 
 ### Development Workflow Commands
 
@@ -3486,16 +3241,16 @@ export const dev = new Command()
   .action(async (opts) => {
     try {
       const projectConfig = await loadProjectConfiguration();
-      
+
       // Build project if requested
       if (opts.build) {
         console.log('Building project...');
         await buildProject();
       }
-      
+
       // Handle character file configuration
       const characterPaths = await resolveCharacterPaths(opts.character);
-      
+
       // Setup development environment
       const devConfig = {
         port: opts.port || projectConfig.defaultPort || 3000,
@@ -3504,19 +3259,19 @@ export const dev = new Command()
         watch: ['src/**/*.ts', 'characters/**/*.json'],
         env: 'development'
       };
-      
+
       // Start development server with hot reload
       await startDevelopmentServer(devConfig);
-      
+
       // Setup file watchers for auto-reload
       setupFileWatchers(devConfig.watch, () => {
         console.log('Changes detected, reloading...');
         restartServer();
       });
-      
+
       console.log(`🚀 Development server running on port ${devConfig.port}`);
       console.log(`📁 Characters: ${characterPaths.join(', ')}`);
-      
+
     } catch (error) {
       handleDevelopmentError(error);
     }
@@ -3531,18 +3286,18 @@ async function resolveCharacterPaths(characterInput?: string[]): Promise<string[
       'character.json',
       'src/character.json'
     ];
-    
+
     for (const defaultPath of defaultPaths) {
       if (await fs.access(defaultPath).then(() => true).catch(() => false)) {
         return [defaultPath];
       }
     }
-    
+
     throw new ConfigurationError('No character files found. Use --character to specify files.');
   }
-  
+
   const resolvedPaths: string[] = [];
-  
+
   for (const input of characterInput) {
     if (input.startsWith('http')) {
       // Remote character file
@@ -3550,7 +3305,7 @@ async function resolveCharacterPaths(characterInput?: string[]): Promise<string[
     } else {
       // Local file - add .json extension if missing
       const path = input.endsWith('.json') ? input : `${input}.json`;
-      
+
       if (await fs.access(path).then(() => true).catch(() => false)) {
         resolvedPaths.push(path);
       } else {
@@ -3558,7 +3313,7 @@ async function resolveCharacterPaths(characterInput?: string[]): Promise<string[
       }
     }
   }
-  
+
   return resolvedPaths;
 }
 
@@ -3572,17 +3327,17 @@ export const start = new Command()
     try {
       const projectConfig = await loadProjectConfiguration();
       const characterPaths = await resolveCharacterPaths(opts.character);
-      
+
       const prodConfig = {
         port: opts.port || process.env.PORT || projectConfig.defaultPort || 3000,
         characters: characterPaths,
         env: 'production',
         clustering: projectConfig.clustering || false
       };
-      
+
       console.log('🚀 Starting ElizaOS in production mode...');
       await startProductionServer(prodConfig);
-      
+
     } catch (error) {
       handleProductionError(error);
     }
@@ -3594,7 +3349,7 @@ export const badDev = new Command()
     // No configuration, no character handling, no error handling
     require('./src/index.js');
   });
-```
+````
 
 ## Error Handling and Validation
 
@@ -3603,7 +3358,10 @@ export const badDev = new Command()
 ```typescript
 // ✅ DO: Implement specific error types for different failure scenarios
 export class ProjectValidationError extends Error {
-  constructor(message: string, public context?: Record<string, any>) {
+  constructor(
+    message: string,
+    public context?: Record<string, any>
+  ) {
     super(message);
     this.name = 'ProjectValidationError';
   }
@@ -3621,21 +3379,30 @@ export class PluginInstallationError extends Error {
 }
 
 export class PluginNotFoundError extends Error {
-  constructor(message: string, public pluginName: string) {
+  constructor(
+    message: string,
+    public pluginName: string
+  ) {
     super(message);
     this.name = 'PluginNotFoundError';
   }
 }
 
 export class ConfigurationError extends Error {
-  constructor(message: string, public configType?: string) {
+  constructor(
+    message: string,
+    public configType?: string
+  ) {
     super(message);
     this.name = 'ConfigurationError';
   }
 }
 
 export class FileNotFoundError extends Error {
-  constructor(message: string, public filePath: string) {
+  constructor(
+    message: string,
+    public filePath: string
+  ) {
     super(message);
     this.name = 'FileNotFoundError';
   }
@@ -3662,7 +3429,7 @@ export function handleCreateError(error: unknown): never {
   } else {
     console.error(`❌ Unexpected error: ${error instanceof Error ? error.message : String(error)}`);
   }
-  
+
   process.exit(1);
 }
 ```
@@ -3673,31 +3440,31 @@ export function handleCreateError(error: unknown): never {
 // ✅ DO: Implement comprehensive validation for project names and configurations
 export const validateProjectName = (name: string): boolean => {
   // Check for valid npm package name
-  const npmPattern = /^[a-z0-9](mdc:[a-z0-9-]*[a-z0-9])?$/;
-  
+  const npmPattern = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+
   if (!npmPattern.test(name)) {
     throw new ProjectValidationError(
       'Project name must be a valid npm package name (lowercase, no spaces, can contain hyphens)'
     );
   }
-  
+
   // Check for reserved names
   const reservedNames = ['elizaos', 'eliza', 'node_modules', 'package'];
   if (reservedNames.includes(name.toLowerCase())) {
     throw new ProjectValidationError(`Project name "${name}" is reserved`);
   }
-  
+
   return true;
 };
 
 export const validatePluginName = (name: string): boolean => {
   // Normalize and validate plugin name
   const normalized = normalizePluginNameForDisplay(name);
-  
+
   if (normalized.length < 3) {
     throw new ProjectValidationError('Plugin name must be at least 3 characters long');
   }
-  
+
   return true;
 };
 
@@ -3713,21 +3480,20 @@ export interface DirectoryInfo {
 export function detectDirectoryType(dir: string): DirectoryInfo {
   const packageJsonPath = path.join(dir, 'package.json');
   const elizaConfigPath = path.join(dir, 'elizaos.config.js');
-  
+
   const hasPackageJson = fs.existsSync(packageJsonPath);
   const hasElizaConfig = fs.existsSync(elizaConfigPath);
-  
+
   let isElizaProject = false;
   let isPlugin = false;
   let projectType: DirectoryInfo['projectType'] = 'empty';
-  
+
   if (hasPackageJson) {
     try {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
       isElizaProject = !!packageJson.dependencies?.['@elizaos/core'];
-      isPlugin = packageJson.name?.startsWith('plugin-') || 
-                 packageJson.name?.includes('/plugin-');
-      
+      isPlugin = packageJson.name?.startsWith('plugin-') || packageJson.name?.includes('/plugin-');
+
       if (isElizaProject) {
         projectType = isPlugin ? 'plugin' : 'eliza-project';
       } else {
@@ -3737,13 +3503,13 @@ export function detectDirectoryType(dir: string): DirectoryInfo {
       projectType = 'other';
     }
   }
-  
+
   return {
     hasPackageJson,
     hasElizaConfig,
     isElizaProject,
     isPlugin,
-    projectType
+    projectType,
   };
 }
 
@@ -3761,7 +3527,7 @@ export const badValidation = (name: string): boolean => {
 // ✅ DO: Implement comprehensive plugin name normalization and resolution
 export const normalizePluginNameForDisplay = (pluginInput: string): string => {
   let baseName = pluginInput;
-  
+
   // Handle scoped formats like "@scope/plugin-name" or "scope/plugin-name"
   if (pluginInput.includes('/')) {
     const parts = pluginInput.split('/');
@@ -3771,7 +3537,7 @@ export const normalizePluginNameForDisplay = (pluginInput: string): string => {
   else if (pluginInput.startsWith('@')) {
     baseName = pluginInput.substring(1);
   }
-  
+
   // Ensure it starts with 'plugin-' and remove duplicates
   baseName = baseName.replace(/^plugin-/, '');
   return `plugin-${baseName}`;
@@ -3784,7 +3550,7 @@ export const findPluginPackageName = (
   const normalizedBase = pluginInput
     .replace(/^@[^/]+\//, '') // Remove scope
     .replace(/^plugin-/, ''); // Remove prefix
-  
+
   // Potential package names to check in order of preference
   const possibleNames = [
     pluginInput, // Check raw input first
@@ -3792,44 +3558,43 @@ export const findPluginPackageName = (
     `@elizaos-plugins/plugin-${normalizedBase}`, // Alternative scope
     `plugin-${normalizedBase}`, // Unscoped
     `@elizaos/${normalizedBase}`, // Official without plugin prefix
-    `@elizaos-plugins/${normalizedBase}` // Alternative without prefix
+    `@elizaos-plugins/${normalizedBase}`, // Alternative without prefix
   ];
-  
+
   for (const name of possibleNames) {
     if (allDependencies[name]) {
       return name;
     }
   }
-  
+
   return null;
 };
 
 // Registry-based resolution with fallback
 export async function resolvePluginPackage(
-  pluginInput: string, 
+  pluginInput: string,
   opts: { branch?: string; tag?: string }
 ): Promise<string> {
   try {
     const registry = await fetchPluginRegistry();
-    
+
     if (registry?.registry[pluginInput]) {
       const pluginInfo = registry.registry[pluginInput];
-      
+
       // Use tag-specific version if available
       if (opts.tag && pluginInfo.npm?.tags?.[opts.tag]) {
         return `${pluginInput}@${pluginInfo.npm.tags[opts.tag]}`;
       }
-      
+
       // Use latest compatible version
       const latestVersion = pluginInfo.npm?.v1 || pluginInfo.npm?.v0;
       if (latestVersion) {
         return `${pluginInput}@${latestVersion}`;
       }
     }
-    
+
     // Fallback to normalized name
     return normalizePluginNameForDisplay(pluginInput);
-    
   } catch (error) {
     console.warn('Could not fetch plugin registry, using normalized name');
     return normalizePluginNameForDisplay(pluginInput);
@@ -3860,35 +3625,34 @@ export async function installDependencies(
     skipOptional: true,
     parallel: true,
     timeout: 300000, // 5 minutes
-    ...options
+    ...options,
   };
-  
+
   console.log('📦 Installing dependencies...');
   const startTime = Date.now();
-  
+
   try {
     const installArgs = ['install'];
-    
+
     if (opts.skipOptional) {
       installArgs.push('--no-optional');
     }
-    
+
     if (opts.parallel) {
       installArgs.push('--parallel');
     }
-    
+
     await runBunCommand(installArgs, targetDir, {
       timeout: opts.timeout,
-      stdio: 'inherit'
+      stdio: 'inherit',
     });
-    
+
     const duration = Date.now() - startTime;
     console.log(`✅ Dependencies installed in ${(duration / 1000).toFixed(1)}s`);
-    
   } catch (error) {
     console.warn(
       'Failed to install dependencies automatically. ' +
-      'Please run "bun install" manually in the project directory.'
+        'Please run "bun install" manually in the project directory.'
     );
     throw new PluginInstallationError(
       'Dependency installation failed',
@@ -3905,25 +3669,24 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export async function fetchPluginRegistry(): Promise<any> {
   const now = Date.now();
-  
-  if (registryCache && (now - registryCacheTime) < CACHE_DURATION) {
+
+  if (registryCache && now - registryCacheTime < CACHE_DURATION) {
     return registryCache;
   }
-  
+
   try {
     const response = await fetch(PLUGIN_REGISTRY_URL, {
-      timeout: 10000 // 10 second timeout
+      timeout: 10000, // 10 second timeout
     });
-    
+
     if (!response.ok) {
       throw new Error(`Registry fetch failed: ${response.statusText}`);
     }
-    
+
     registryCache = await response.json();
     registryCacheTime = now;
-    
+
     return registryCache;
-    
   } catch (error) {
     if (registryCache) {
       console.warn('Using cached registry due to fetch error');
@@ -3946,22 +3709,18 @@ export async function badInstallDependencies(dir: string): Promise<void> {
 
 ```typescript
 // ❌ DON'T: Create commands without proper option validation or help
-const badCommand = new Command()
-  .name('bad')
-  .action(async (options) => {
-    // No validation, no error handling, no help
-    console.log('Doing something...');
-  });
+const badCommand = new Command().name('bad').action(async (options) => {
+  // No validation, no error handling, no help
+  console.log('Doing something...');
+});
 
 // ❌ DON'T: Mix command concerns or create overly complex commands
-const confusedCommand = new Command()
-  .name('confused')
-  .action(async (options) => {
-    // Doing project creation, plugin management, AND deployment
-    await createProject();
-    await installPlugins();
-    await deployToProduction();
-  });
+const confusedCommand = new Command().name('confused').action(async (options) => {
+  // Doing project creation, plugin management, AND deployment
+  await createProject();
+  await installPlugins();
+  await deployToProduction();
+});
 
 // ✅ DO: Create focused, well-documented commands with proper validation
 const goodCommand = new Command()
@@ -3970,11 +3729,14 @@ const goodCommand = new Command()
   .argument('<name>', 'Project name (must be valid npm package name)')
   .option('-d, --dir <directory>', 'Target directory for project creation', '.')
   .option('-t, --template <template>', 'Project template to use', 'default')
-  .addHelpText('after', `
+  .addHelpText(
+    'after',
+    `
 Examples:
   $ elizaos create-project my-agent
   $ elizaos create-project my-agent --dir ./projects --template advanced
-  `)
+  `
+  )
   .action(async (name: string, options) => {
     try {
       validateProjectName(name);
@@ -4029,52 +3791,47 @@ async function goodErrorHandling() {
 ## Best Practices Summary
 
 ### Command Design
+
 - Use focused, single-purpose commands
 - Provide comprehensive help and examples
 - Implement proper argument and option validation
 - Use aliases for commonly used commands
 
 ### Error Handling
+
 - Create specific error types for different scenarios
 - Provide contextual error messages with suggested solutions
 - Implement graceful fallbacks where possible
 - Log errors with appropriate detail levels
 
 ### Performance
+
 - Cache registry data to avoid repeated network calls
 - Use parallel processing for dependency installation
 - Implement timeouts for network operations
 - Provide progress feedback for long-running operations
 
 ### User Experience
+
 - Use interactive prompts for better developer experience
 - Provide sensible defaults for all options
 - Show clear success and progress messages
 - Include helpful examples in command descriptions
 
 ### Configuration Management
+
 - Support both interactive and non-interactive modes
 - Validate all configuration before processing
 - Use environment variables for sensitive data
 - Provide configuration templates and examples
 
 ## References
-- [ElizaOS CLI Source](mdc:Users/ilessio/dev-agents/PROJECTS/cursor_rules/eliza/packages/cli/src)
-- [Commander.js Documentation](mdc:https:/github.com/tj/commander.js)
-- [Project Creation Patterns](mdc:Users/ilessio/dev-agents/PROJECTS/cursor_rules/eliza/packages/cli/src/commands/create.ts)
-- [Plugin Management System](mdc:Users/ilessio/dev-agents/PROJECTS/cursor_rules/eliza/packages/cli/src/commands/plugins.ts)
-- [Development Workflow Commands](mdc:Users/ilessio/dev-agents/PROJECTS/cursor_rules/eliza/packages/cli/src/commands/dev.ts)
 
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-entities.mdc`:
-
-```mdc
----
-description: Entities are database representations of users that the agent tracks, the user can track data on entities and track the relationships between entities
-globs:
-alwaysApply: false
----
+- [ElizaOS CLI Source](Users/ilessio/dev-agents/PROJECTS/cursor_rules/eliza/packages/cli/src)
+- [Commander.js Documentation](https:/github.com/tj/commander.js)
+- [Project Creation Patterns](Users/ilessio/dev-agents/PROJECTS/cursor_rules/eliza/packages/cli/src/commands/create.ts)
+- [Plugin Management System](Users/ilessio/dev-agents/PROJECTS/cursor_rules/eliza/packages/cli/src/commands/plugins.ts)
+- [Development Workflow Commands](Users/ilessio/dev-agents/PROJECTS/cursor_rules/eliza/packages/cli/src/commands/dev.ts)
 
 # ElizaOS Entities System
 
@@ -4409,34 +4166,14 @@ const multiPlatformEntity = {
 - **Extensibility**: Plugins can define custom component types
 - **Performance**: Load only needed components
 
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/vendor_models.mdc`:
-
-```mdc
----
-description: 
-globs: 
-alwaysApply: true
----
 Current anthropic models:
 Claude Opus 4 claude-opus-4-20250514
-Claude Sonnet 4	claude-sonnet-4-20250514
+Claude Sonnet 4 claude-sonnet-4-20250514
 
 Current OpenAI models:
 'gpt-4o'
 'gpt-4o-mini'
 'o1-2024-12-17'
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-database.mdc`:
-
-```mdc
----
-description: Database, Postgres, PGLite, Drizzle, creating new tables, adding data to Eliza
-globs:
-alwaysApply: false
----
 
 # ElizaOS Database System
 
@@ -4446,33 +4183,10 @@ The ElizaOS database system provides persistent storage capabilities for agents 
 
 ### Architecture
 
-```
-┌─────────────────────────┐
-│     Agent Runtime       │
-└────────────┬────────────┘
-             │
-┌────────────▼────────────┐
-│   IDatabaseAdapter      │
-└────────────┬────────────┘
-             │
-┌────────────▼────────────┐
-│   BaseDrizzleAdapter    │
-└────────────┬────────────┘
-             │
-    ┌────────┴────────┐
-    ▼                 ▼
-┌──────────┐   ┌──────────┐
-│ PGLite   │   │PostgreSQL│
-│ Adapter  │   │ Adapter  │
-└──────────┘   └──────────┘
-```
-
 ### Current Adapters
 
-| Adapter        | Best For                    | Key Features                                |
-| -------------- | --------------------------- | ------------------------------------------- |
-| **PGLite**     | Local development & testing | Lightweight PostgreSQL in Node.js process   |
-| **PostgreSQL** | Production deployments      | Full PostgreSQL with vector search, scaling |
+| **PGLite** | Local development & testing | Lightweight PostgreSQL in Node.js process |
+| **PostgreSQL** | Production deployments | Full PostgreSQL with vector search, scaling |
 
 ## Database Operations
 
@@ -4791,17 +4505,6 @@ Future releases will support:
 
 The adapter interface is designed for extensibility.
 
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-services.mdc`:
-
-```mdc
----
-description: Service architecture, microservices, service discoverability, services are used in the agent to enable additional functionality and hold state which can be accessed by providers, manipulated by actions etc, useful for managing connections and active clients
-globs:
-alwaysApply: false
----
-
 # ElizaOS Services System
 
 Services are long-running, stateful singleton components that manage complex functionality and external integrations. They provide a consistent interface for agents to interact with various platforms and systems.
@@ -5024,7 +4727,7 @@ const transferAction: Action = {
 
 Services are registered via plugins:
 
-```typescript
+````typescript
 const myPlugin: Plugin = {
   name: 'my-plugin',
   description: 'Plugin with custom service',
@@ -5036,18 +4739,6 @@ const myPlugin: Plugin = {
     // Use service...
   },
 };
-```
-
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-tasks.mdc`:
-
-```mdc
----
-description: Task system, choices, deferred tasks, ongoing tasks, queue system, tasks can be continuous and repeated or one time
-globs:
-alwaysApply: false
----
 
 # ElizaOS Tasks System
 
@@ -5076,7 +4767,7 @@ interface Task {
   worldId?: UUID; // Optional world association
   tags: string[]; // Categorization tags
 }
-```
+````
 
 ### Task Worker
 
@@ -5444,18 +5135,7 @@ runtime.registerTaskWorker({
     }
   },
 });
-```
 
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-cypress-testing.mdc`:
-
-```mdc
----
-description: 
-globs: 
-alwaysApply: false
----
 # ElizaOS Cypress Frontend Testing
 
 This guide explains how to write and run Cypress tests for ElizaOS frontend components, plugin UIs, and web interfaces using the integrated CLI test runner.
@@ -5484,20 +5164,22 @@ When detected, Cypress tests run after unit and E2E tests in the test pipeline.
 ### Plugin with Frontend UI
 
 ```
+
 packages/my-plugin/
 ├── src/
-│   ├── index.ts           # Plugin definition with routes
-│   └── frontend/          # Frontend code
-│       └── index.tsx      # UI components
+│ ├── index.ts # Plugin definition with routes
+│ └── frontend/ # Frontend code
+│ └── index.tsx # UI components
 ├── cypress/
-│   ├── e2e/              # E2E UI tests
-│   │   └── plugin-ui.cy.ts
-│   ├── support/          # Cypress configuration
-│   │   └── e2e.ts
-│   └── screenshots/      # Failure screenshots (auto-generated)
-├── cypress.config.ts     # Cypress configuration
-└── package.json         # Must include cypress as devDependency
-```
+│ ├── e2e/ # E2E UI tests
+│ │ └── plugin-ui.cy.ts
+│ ├── support/ # Cypress configuration
+│ │ └── e2e.ts
+│ └── screenshots/ # Failure screenshots (auto-generated)
+├── cypress.config.ts # Cypress configuration
+└── package.json # Must include cypress as devDependency
+
+````
 
 ## Cypress Configuration
 
@@ -5521,7 +5203,7 @@ export default defineConfig({
     responseTimeout: 10000,
   },
 });
-```
+````
 
 ## Writing Cypress Tests
 
@@ -5574,11 +5256,10 @@ describe('Plugin API Tests', () => {
   const agentId = Cypress.env('AGENT_IDS')?.split(',')[0] || 'test-agent';
 
   it('should call plugin API endpoints', () => {
-    cy.request('GET', `/api/agents/${agentId}/plugins/my-plugin/api/data`)
-      .then((response) => {
-        expect(response.status).to.eq(200);
-        expect(response.body).to.have.property('data');
-      });
+    cy.request('GET', `/api/agents/${agentId}/plugins/my-plugin/api/data`).then((response) => {
+      expect(response.status).to.eq(200);
+      expect(response.body).to.have.property('data');
+    });
   });
 
   it('should handle API errors gracefully', () => {
@@ -5813,23 +5494,27 @@ The `elizaos test` command is CI-friendly:
 ## Plugin Development Workflow
 
 1. **Create Plugin Structure**
+
    ```bash
    elizaos create plugin my-ui-plugin
    ```
 
 2. **Add Cypress**
+
    ```bash
    cd packages/my-ui-plugin
    bun add -D cypress
    ```
 
 3. **Create Cypress Config**
+
    ```bash
    touch cypress.config.ts
    mkdir -p cypress/e2e
    ```
 
 4. **Write Tests**
+
    ```bash
    touch cypress/e2e/ui.cy.ts
    ```
@@ -5860,65 +5545,14 @@ npx cypress open
 
 ## Example: Complete Plugin with Tests
 
-See the `plugin-todo` and `plugin-knowledge` packages for complete examples of plugins with Cypress tests:
+See the `plugin-starter` and `plugin-knowledge` packages for complete examples of plugins with Cypress tests:
 
 - Frontend routes serving HTML/React
 - API endpoints
 - Cypress tests verifying functionality
 - Integration with the CLI test runner
 
-## Summary
-
-Cypress testing in ElizaOS provides automated frontend testing that integrates seamlessly with the CLI test pipeline. By following these patterns and best practices, you can ensure your plugin UIs work correctly across different environments and agent configurations.
-
 Remember: **Cypress tests run automatically when you run `elizaos test` if Cypress is detected in your project.**
-
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos_cli_agents.mdc`:
-
-```mdc
----
-description: ElizaOS CLI Agent APIs, Starting Agents, Setting up Characters
-globs: 
-alwaysApply: false
----
-> You are an expert in the ElizaOS CLI, specializing in agent creation, management, and runtime operations. You provide clear, actionable guidance based on the latest best practices.
-
-## Agent Architecture and Lifecycle
-
-```mermaid
-graph TD
-    subgraph "Creation"
-        A[elizaos create --type agent] --> B(my-agent.json);
-        C[Project Template] --> D(src/agents/agent.ts);
-    end
-
-    subgraph "Server Startup"
-        E[elizaos start] --> F{Is Project?};
-        F -->|Yes| G[Load agents from src/index.ts];
-        F -->|No, is Plugin| H[Load default Eliza character + plugin];
-        G --> I[AgentServer is Running];
-        H --> I;
-    end
-    
-    subgraph "Live Management (via API)"
-        I --> J[elizaos agent list];
-        I --> K[elizaos agent get];
-        I --> L[elizaos agent start];
-        I --> M[elizaos agent stop];
-        I --> N[elizaos agent remove];
-        I --> O[elizaos agent set];
-    end
-
-    subgraph "Direct Loading"
-        P[elizaos start --character my-agent.json] --> I;
-        Q[elizaos agent start --path my-agent.json] --> I;
-    end
-    
-    B --> Q;
-    D --> G;
-```
 
 ## Agent Structure
 
@@ -5931,7 +5565,7 @@ export interface Character {
   name: string;
   description: string;
   // The initial prompt that defines the agent's personality and goals
-  systemPrompt: string; 
+  systemPrompt: string;
   // Examples of interactions to guide the agent's responses
   messageExamples: Array<Array<{ name: string; content: string }>>;
   // List of plugin packages the agent uses
@@ -6120,9 +5754,7 @@ async function resolveAgentId(idOrNameOrIndex: string, opts: any): Promise<strin
   const agents = await getAgents(opts);
 
   // 2. Try to find by name (case-insensitive)
-  const byName = agents.find(
-    (agent) => agent.name.toLowerCase() === idOrNameOrIndex.toLowerCase()
-  );
+  const byName = agents.find((agent) => agent.name.toLowerCase() === idOrNameOrIndex.toLowerCase());
   if (byName) return byName.id;
 
   // 3. Try to find by exact ID
@@ -6138,77 +5770,38 @@ async function resolveAgentId(idOrNameOrIndex: string, opts: any): Promise<strin
 ```
 
 ## References
-- [Project Management](mdc:elizaos_v2_cli_project.mdc)
-- [Plugin Integration](mdc:elizaos_v2_api_plugins_core.mdc)
-- [Core Types (`Character`)](mdc:packages/core/src/types.ts)
-- [Agent Command Source](mdc:packages/cli/src/commands/agent.ts)
 
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos_cli_config.mdc`:
-
-```mdc
----
-description: ElizaOS CLI configuration and settings
-globs: 
-alwaysApply: false
----
-> You are an expert in ElizaOS configuration, focusing on environment management, security, and best practices. You provide clear, actionable guidance for developers to configure their projects effectively.
+- [Project Management](elizaos_v2_cli_project.mdc)
+- [Plugin Integration](elizaos_v2_api_plugins_core.mdc)
+- [Core Types (`Character`)](packages/core/src/types.ts)
+- [Agent Command Source](packages/cli/src/commands/agent.ts)
 
 ## ElizaOS Configuration Architecture
 
 Configuration in ElizaOS is handled through a layered and context-aware system, prioritizing local project settings and secure management of secrets. The system is designed to be both user-friendly for interactive sessions and robust for automated CI/CD environments.
-
-```mermaid
-graph TD
-    subgraph "User Action"
-        A[elizaos create] --> B(Interactive Prompts);
-        C[elizaos start] --> D[Runtime Initialization];
-        E[elizaos env] --> F(Manage .env File);
-    end
-
-    subgraph "Configuration Sources (Order of Precedence)"
-        G(1. Built-in Defaults) --> H(2. .env File);
-        H --> I(3. CLI Flags);
-    end
-    
-    subgraph "File System & Path Resolution"
-        J[UserEnvironment Utility] --> K{Find Project Root};
-        K -->|Monorepo?| L[packages/core exists];
-        K -->|Standard| M[Current Directory];
-        L & M --> N[Resolve .env Path];
-        J --> O[Resolve .eliza/config.json Path];
-    end
-    
-    subgraph "Runtime Loading"
-        D --> P(Load .env into process.env);
-        P --> Q(Apply CLI Flags);
-        Q --> R(Start AgentServer w/ Config);
-    end
-
-    B --> F;
-```
 
 ## Configuration Files and Locations
 
 The `UserEnvironment` utility is the brain behind locating configuration files. It intelligently determines the project root, allowing for consistent behavior in both standalone projects and monorepos.
 
 1.  **Project `.env` file** (Primary Configuration):
-    *   **Location**: At the root of your project directory (e.g., `my-project/.env`). This is found by `UserEnvironment` by searching up from the current directory.
-    *   **Purpose**: This is the most important configuration file. It stores all secrets, API keys, and environment-specific settings (e.g., `POSTGRES_URL`, `OPENAI_API_KEY`).
-    *   **Management**: Use the `elizaos env` command for interactive management. For new projects, `elizaos create` will prompt you for initial values and generate this file.
-    *   **Security**: This file **must never be committed to version control**. Ensure `.env` is in your `.gitignore`.
+
+    - **Location**: At the root of your project directory (e.g., `my-project/.env`). This is found by `UserEnvironment` by searching up from the current directory.
+    - **Purpose**: This is the most important configuration file. It stores all secrets, API keys, and environment-specific settings (e.g., `POSTGRES_URL`, `OPENAI_API_KEY`).
+    - **Management**: Use the `elizaos env` command for interactive management. For new projects, `elizaos create` will prompt you for initial values and generate this file.
+    - **Security**: This file **must never be committed to version control**. Ensure `.env` is in your `.gitignore`.
 
 2.  **Global `config.json`**:
-    *   **Location**: Inside a global `.eliza` directory in your home directory (e.g., `~/.eliza/config.json`).
-    *   **Purpose**: Stores non-sensitive, global CLI state. Currently, it's used to track the `lastUpdated` timestamp. It is not intended for user configuration.
-    *   **Management**: This file is managed automatically by the CLI. You should not need to edit it manually.
+    - **Location**: Inside a global `.eliza` directory in your home directory (e.g., `~/.eliza/config.json`).
+    - **Purpose**: Stores non-sensitive, global CLI state. Currently, it's used to track the `lastUpdated` timestamp. It is not intended for user configuration.
+    - **Management**: This file is managed automatically by the CLI. You should not need to edit it manually.
 
 ## Environment Management (`elizaos env`)
 
 The `elizaos env` command suite is the dedicated tool for managing your local project's `.env` file safely and interactively.
 
 ### Listing Environment Variables (`list`)
+
 Get a clear, color-coded overview of your system information and the contents of your local `.env` file. Sensitive values like API keys are automatically masked for security.
 
 ```bash
@@ -6217,6 +5810,7 @@ elizaos env list
 ```
 
 ### Editing Environment Variables (`edit-local`)
+
 This command launches an interactive terminal UI to securely add, edit, or delete variables in your local `.env` file. It's the safest way to manage secrets.
 
 ```bash
@@ -6225,6 +5819,7 @@ elizaos env edit-local
 ```
 
 ### Resetting the Environment (`reset`)
+
 For a clean slate, the `reset` command can clear configurations and data. It interactively prompts you to select what to reset, including the `.env` file, the cache, and the local PGLite database.
 
 ```bash
@@ -6238,6 +5833,7 @@ elizaos env reset --yes
 ## Configuration in Practice
 
 ### Hierarchy and Precedence
+
 ElizaOS applies configuration in the following order (lower numbers are overridden by higher numbers):
 
 1.  **Built-in Defaults**: Default values hardcoded in the CLI (e.g., server port `3000`, default model names).
@@ -6245,6 +5841,7 @@ ElizaOS applies configuration in the following order (lower numbers are overridd
 3.  **Command-Line Flags**: Arguments passed directly to a command (e.g., `elizaos start --port 4000`) will always take the highest precedence, overriding all other sources.
 
 ### The `create` Workflow
+
 When you run `elizaos create`, the CLI uses the `env-prompt.ts` utility to guide you.
 
 ```typescript
@@ -6269,6 +5866,7 @@ export async function promptForEnvVars(pluginName: string): Promise<void> {
 ```
 
 ### The `start` Workflow
+
 The `elizaos start` command uses `UserEnvironment` to find the correct `.env` file and loads it using `dotenv`. This populates `process.env`, making the variables available to the entire runtime and all plugins.
 
 ```typescript
@@ -6290,26 +5888,18 @@ const apiKey = runtime.getSetting('OPENAI_API_KEY');
 ```
 
 ## Security Best Practices
--   **Secrets belong in `.env`**: Always use your project's local `.env` file for API keys, database URLs, and any other sensitive data.
--   **Never Hardcode Secrets**: Do not write secrets directly in your source code (`.ts` files). This is a major security risk.
--   **Git Ignore**: Your `.gitignore` file must include `.env` to prevent accidental commits of your secrets. The default project template handles this for you.
--   **CI/CD**: For automated environments, do not check in a `.env` file. Instead, use your CI/CD provider's secret management system to inject the required values as environment variables at build/runtime.
+
+- **Secrets belong in `.env`**: Always use your project's local `.env` file for API keys, database URLs, and any other sensitive data.
+- **Never Hardcode Secrets**: Do not write secrets directly in your source code (`.ts` files). This is a major security risk.
+- **Git Ignore**: Your `.gitignore` file must include `.env` to prevent accidental commits of your secrets. The default project template handles this for you.
+- **CI/CD**: For automated environments, do not check in a `.env` file. Instead, use your CI/CD provider's secret management system to inject the required values as environment variables at build/runtime.
 
 ## References
-- [UserEnvironment Utility](mdc:packages/cli/src/utils/user-environment.ts)
-- [Environment Prompting Logic](mdc:packages/cli/src/utils/env-prompt.ts)
-- [Env Command Source](mdc:packages/cli/src/commands/env.ts)
-- [Agent Management Rules](mdc:elizaos_v2_cli_agents.mdc)
 
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-unit-testing.mdc`:
-
-```mdc
----
-title: ElizaOS Unit Testing Guide
-alwaysApply: true
----
+- [UserEnvironment Utility](packages/cli/src/utils/user-environment.ts)
+- [Environment Prompting Logic](packages/cli/src/utils/env-prompt.ts)
+- [Env Command Source](packages/cli/src/commands/env.ts)
+- [Agent Management Rules](elizaos_v2_cli_agents.mdc)
 
 # ElizaOS Unit Testing
 
@@ -6855,10 +6445,6 @@ it('should debug something', async () => {
 });
 ```
 
-## Summary
-
-Unit testing in ElizaOS ensures individual components work correctly in isolation. By using the `elizaos test` command (which wraps Vitest), creating comprehensive mocks, and following these patterns, you can build a robust test suite that catches bugs early and maintains code quality.
-
 Remember:
 
 - **Always use `elizaos test`**, not direct vitest commands
@@ -6866,40 +6452,14 @@ Remember:
 - **Aim for >75% coverage** on testable code
 - **All tests must pass** before considering work complete
 
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-llm-providers.mdc`:
-
-```mdc
----
-description: ElizaOS LLM Providers and AI Model Handling in the runtime
-globs: 
-alwaysApply: false
----
-> You are an expert in ElizaOS, focusing on the integration of Large Language Models (LLMs) through the plugin architecture. You provide clear, practical guidance on creating model providers.
-
 ## LLM Provider Architecture
 
 In ElizaOS, LLMs are integrated via plugins that register `ModelHandler` functions with the `AgentRuntime`. This allows the agent to use different models for various tasks like text generation, reasoning, and creating embeddings. The runtime manages a prioritized list of handlers for each `ModelType`.
 
-```mermaid
-graph TD
-    A[AgentRuntime] -->|Calls useModel(type, params)| B(getModel(type));
-    B --> C{Find Handler by Type & Priority};
-    C -->|Found| D[Select Highest Priority Handler];
-    D --> E[Execute Handler(params)];
-    E --> F[Return Result];
-    A --> F;
-
-    subgraph "Plugin Registration"
-        G[Plugin Init] --> H[runtime.registerModel(type, handler, provider, priority)];
-        H --> I[Runtime adds handler to sorted list for 'type'];
-    end
-```
-
 ## Core Concepts
 
 ### `ModelType` Enum
+
 This enum in `@elizaos/core` defines the standard categories of models the runtime understands. Plugins should register handlers for one or more of these types.
 
 ```typescript
@@ -6914,6 +6474,7 @@ export const ModelType = {
 ```
 
 ### `ModelHandler` Interface
+
 A `ModelHandler` is an object that packages the model-calling function with its metadata.
 
 ```typescript
@@ -6927,15 +6488,17 @@ export interface ModelHandler {
 ```
 
 ### Registration and Selection
--   **`runtime.registerModel(type, handler, provider, priority)`**: A plugin calls this in its `init` function to make a model available.
--   **`runtime.getModel(type)`**: The runtime uses this internally to retrieve the highest-priority handler for a given `ModelType`. If multiple handlers have the same priority, the one registered first is chosen.
--   **`runtime.useModel(type, params)`**: This is the primary method agents and other components use to invoke a model. It automatically selects the best available handler and executes it.
+
+- **`runtime.registerModel(type, handler, provider, priority)`**: A plugin calls this in its `init` function to make a model available.
+- **`runtime.getModel(type)`**: The runtime uses this internally to retrieve the highest-priority handler for a given `ModelType`. If multiple handlers have the same priority, the one registered first is chosen.
+- **`runtime.useModel(type, params)`**: This is the primary method agents and other components use to invoke a model. It automatically selects the best available handler and executes it.
 
 ## Implementation Pattern
 
 Here is how you would create a plugin that provides an LLM for text generation.
 
 ### 1. Define the Model Handler
+
 Create a function that takes the runtime and parameters, calls the external LLM API, and returns the result in the expected format.
 
 ```typescript
@@ -6946,7 +6509,7 @@ import { callMyLlmApi } from './api'; // Your API client
 // ✅ DO: Implement the handler function matching the expected parameters
 export async function handleTextLarge(
   runtime: IAgentRuntime,
-  params: TextGenerationParams,
+  params: TextGenerationParams
 ): Promise<string> {
   const apiKey = runtime.getSetting('MY_LLM_API_KEY');
   if (!apiKey) {
@@ -6969,6 +6532,7 @@ export async function handleTextLarge(
 ```
 
 ### 2. Create the Plugin
+
 In your plugin's main file, register the handler.
 
 ```typescript
@@ -6979,7 +6543,7 @@ import { handleTextLarge } from './handler';
 export const myLlmProviderPlugin: Plugin = {
   name: 'my-llm-provider',
   description: 'Provides access to My Custom LLM.',
-  
+
   // ✅ DO: Register your model handlers in the `models` property
   models: {
     // The key must match a value from the ModelType enum
@@ -7000,6 +6564,7 @@ export const myLlmProviderPlugin: Plugin = {
 ```
 
 ### 3. Usage in an Action or Provider
+
 Once the plugin is registered, any other component can use the model via `runtime.useModel`.
 
 ```typescript
@@ -7018,7 +6583,7 @@ export const myAction: Action = {
       prompt: `The user asked: ${question}. Please provide a concise answer.`,
       temperature: 0.5,
     });
-    
+
     // ... do something with the response
     return { text: responseText };
   },
@@ -7029,18 +6594,22 @@ export const myAction: Action = {
 ## Best Practices
 
 ### Parameter and Result Typing
--   Use the generic parameter and result types from `@elizaos/core` (`ModelParamsMap`, `ModelResultMap`, `TextGenerationParams`, etc.) to ensure your handler is compatible with the runtime.
--   If your model returns extra metadata (like token usage), you can attach it to the response, but ensure the primary return value matches the `ModelResultMap` type for the given `ModelType`.
+
+- Use the generic parameter and result types from `@elizaos/core` (`ModelParamsMap`, `ModelResultMap`, `TextGenerationParams`, etc.) to ensure your handler is compatible with the runtime.
+- If your model returns extra metadata (like token usage), you can attach it to the response, but ensure the primary return value matches the `ModelResultMap` type for the given `ModelType`.
 
 ### Error Handling
--   Your handler function should perform robust error handling. If an API call fails, throw a descriptive error. The `useModel` call will propagate this error, allowing the caller to handle it.
--   Check for required API keys or configuration in your plugin's `init` function and log a warning if they are missing.
+
+- Your handler function should perform robust error handling. If an API call fails, throw a descriptive error. The `useModel` call will propagate this error, allowing the caller to handle it.
+- Check for required API keys or configuration in your plugin's `init` function and log a warning if they are missing.
 
 ### Priority
--   If you are creating a plugin that you intend to be the default for a certain `ModelType`, give it a `priority`. For example, `@elizaos/plugin-openai` might have a higher priority than a local model provider.
--   If no priority is set, it defaults to `0`. The registration order is used as a tie-breaker.
+
+- If you are creating a plugin that you intend to be the default for a certain `ModelType`, give it a `priority`. For example, `@elizaos/plugin-openai` might have a higher priority than a local model provider.
+- If no priority is set, it defaults to `0`. The registration order is used as a tie-breaker.
 
 ### Providing Multiple Models
+
 A single plugin can provide handlers for multiple `ModelType`s.
 
 ```typescript
@@ -7051,7 +6620,7 @@ import { handleTextLarge, handleEmbedding } from './handlers';
 export const myFullLlmPlugin: Plugin = {
   name: 'my-full-llm-provider',
   description: 'Provides text and embedding models.',
-  
+
   models: {
     [ModelType.TEXT_LARGE]: handleTextLarge,
     [ModelType.TEXT_EMBEDDING]: handleEmbedding,
@@ -7060,20 +6629,10 @@ export const myFullLlmPlugin: Plugin = {
 ```
 
 ## References
-- [Core Types (`ModelType`, `ModelHandler`, `ModelParamsMap`)](mdc:packages/core/src/types.ts)
-- [Agent Runtime (`registerModel`, `useModel`)](mdc:packages/core/src/runtime.ts)
-- [Example: OpenAI Plugin](mdc:packages/plugin-openai/src/index.ts)
 
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-evaluators.mdc`:
-
-```mdc
----
-description: Eva
-globs:
-alwaysApply: false
----
+- [Core Types (`ModelType`, `ModelHandler`, `ModelParamsMap`)](packages/core/src/types.ts)
+- [Agent Runtime (`registerModel`, `useModel`)](packages/core/src/runtime.ts)
+- [Example: OpenAI Plugin](packages/plugin-openai/src/index.ts)
 
 # ElizaOS Evaluators System
 
@@ -7302,17 +6861,6 @@ const myPlugin: Plugin = {
 };
 ```
 
-```
-
-`/Users/shawwalters/eliza-upgrading/.cursor/rules/elizaos/elizaos-providers.mdc`:
-
-```mdc
----
-description: Providers add context to the LLM so that it can be agentic. Providers are the input to the agent and can be static and always included or dynamic and included when the agent determines they are needed
-globs:
-alwaysApply: false
----
-
 # ElizaOS Providers System
 
 Providers are the sources of information for agents. They act as the agent's "senses", injecting real-time information and context into the agent's decision-making process.
@@ -7511,5 +7059,3 @@ const actionStateProvider: Provider = {
 ## Integration with Actions
 
 Providers run before action selection, providing context that helps the LLM choose appropriate actions. The ACTION_STATE provider specifically enables action chaining by exposing previous execution results.
-
-```
