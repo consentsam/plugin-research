@@ -1,6 +1,6 @@
 import { IAgentRuntime, Memory, elizaLogger } from '@elizaos/core';
 import { ResearchService } from '../service';
-import { ResearchStatus, ResearchPhase, ResearchProject } from '../types';
+import { ResearchProject, ResearchStatus } from '../types';
 
 // Test helper to wait for research completion with longer timeout for real operations
 async function waitForResearchCompletion(

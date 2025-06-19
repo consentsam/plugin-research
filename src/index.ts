@@ -1,22 +1,28 @@
 import { Plugin } from '@elizaos/core';
 import { ResearchService } from './service';
-import { allResearchActions } from './actions';
 import { researchProviders } from './providers';
-import { researchE2ETests } from './tests/research-e2e.test';
-import { realWorldE2ETests } from './tests/real-world-e2e.test';
+import { researchActions } from './actions';
+import deepResearchBenchSimplifiedTests from './__tests__/deepresearch-bench-simplified.e2e.test';
 
 export * from './types';
-export { ResearchService } from './service';
-export { researchActions } from './actions';
-export { researchProviders } from './providers';
+export * from './service';
+export * from './actions';
+export * from './providers';
+export * from './integrations';
+export * from './strategies/research-strategies';
+export * from './evaluation/research-evaluator';
 
 export const researchPlugin: Plugin = {
   name: 'research',
-  description: 'Deep research plugin for multi-phase internet research with AI analysis',
-  actions: allResearchActions,
-  providers: researchProviders,
+  description: 'PhD-level deep research across 22 domains with RACE/FACT evaluation',
+  
   services: [ResearchService],
-  tests: [...researchE2ETests, ...realWorldE2ETests], // Both are already arrays of TestSuites
+  actions: researchActions,
+  providers: researchProviders,
+  
+  tests: [
+    deepResearchBenchSimplifiedTests
+  ],
 };
 
 export default researchPlugin;

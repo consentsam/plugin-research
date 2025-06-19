@@ -71,8 +71,8 @@ export const researchCapabilitiesProvider: Provider = {
 
   async get(runtime: IAgentRuntime, message: Memory, state: State): Promise<ProviderResult> {
     const researchService = runtime.getService<ResearchService>('research');
-    if (!researchService) return { text: '' };
-
+    
+    // Always return capabilities info, even if service is not currently available
     return { text: `Research Capabilities:
 - Deep multi-phase internet research
 - Automatic source collection and verification

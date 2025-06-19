@@ -30,16 +30,20 @@ const SerperResponseSchema = z.object({
   }),
   organic: z.array(SerperOrganicResultSchema).optional(),
   knowledgeGraph: SerperKnowledgeGraphSchema.optional(),
-  answerBox: z.object({
-    title: z.string().optional(),
-    answer: z.string().optional(),
-    snippet: z.string().optional(),
-    link: z.string().optional(),
-  }).optional(),
-  searchInformation: z.object({
-    totalResults: z.string().optional(),
-    timeTaken: z.number().optional(),
-  }).optional(),
+  answerBox: z
+    .object({
+      title: z.string().optional(),
+      answer: z.string().optional(),
+      snippet: z.string().optional(),
+      link: z.string().optional(),
+    })
+    .optional(),
+  searchInformation: z
+    .object({
+      totalResults: z.string().optional(),
+      timeTaken: z.number().optional(),
+    })
+    .optional(),
 });
 
 export interface SerperConfig {
@@ -72,10 +76,10 @@ export class SerperSearchProvider {
 
   async search(query: string, maxResults?: number): Promise<SearchResult[]> {
     const startTime = Date.now();
-    
+
     try {
       elizaLogger.info(`[Serper] Searching for: ${query}`);
-      
+
       const response = await axios.post(
         this.baseUrl,
         {
@@ -96,9 +100,9 @@ export class SerperSearchProvider {
 
       // Validate response
       const validatedData = SerperResponseSchema.parse(response.data);
-      
+
       const results: SearchResult[] = [];
-      
+
       // Add answer box if available
       if (validatedData.answerBox?.answer) {
         results.push({
@@ -106,9 +110,15 @@ export class SerperSearchProvider {
           url: validatedData.answerBox.link || '',
           snippet: validatedData.answerBox.answer,
           content: validatedData.answerBox.snippet || validatedData.answerBox.answer,
+          score: 1.0, // Answer box has highest relevance
+          provider: 'serper',
+          metadata: {
+            language: this.config.language || 'en',
+            type: 'answer_box',
+          },
         });
       }
-      
+
       // Add knowledge graph if available
       if (validatedData.knowledgeGraph) {
         results.push({
@@ -117,31 +127,46 @@ export class SerperSearchProvider {
           snippet: validatedData.knowledgeGraph.description || '',
           content: JSON.stringify({
             ...validatedData.knowledgeGraph,
-            source: 'knowledge_graph'
+            source: 'knowledge_graph',
           }),
+          score: 0.9, // Knowledge graph is highly relevant
+          provider: 'serper',
+          metadata: {
+            language: this.config.language || 'en',
+            type: 'knowledge_graph',
+          },
         });
       }
-      
+
       // Add organic results
       if (validatedData.organic) {
-        results.push(...validatedData.organic.map(result => ({
-          title: result.title,
-          url: result.link,
-          snippet: result.snippet || '',
-          content: undefined, // Serper doesn't provide full content
-        })));
+        results.push(
+          ...validatedData.organic.map((result, index) => ({
+            title: result.title,
+            url: result.link,
+            snippet: result.snippet || '',
+            content: undefined, // Serper doesn't provide full content
+            score: 0.8 - index * 0.05, // Decreasing score by position
+            provider: 'serper',
+            metadata: {
+              language: this.config.language || 'en',
+              position: result.position,
+              date: result.date,
+            },
+          }))
+        );
       }
 
       const duration = Date.now() - startTime;
       elizaLogger.info(`[Serper] Found ${results.length} results in ${duration}ms`);
-      
+
       return results.slice(0, maxResults || this.config.num);
     } catch (error) {
       const duration = Date.now() - startTime;
-      
+
       if (axios.isAxiosError(error)) {
         const axiosError = error as AxiosError;
-        
+
         // Handle specific error cases
         if (axiosError.response?.status === 401) {
           elizaLogger.error('[Serper] Invalid API key');
@@ -150,13 +175,16 @@ export class SerperSearchProvider {
           elizaLogger.error('[Serper] Rate limit exceeded');
           throw new Error('Serper rate limit exceeded');
         } else if (axiosError.response?.status === 403) {
-          elizaLogger.error('[Serper] Forbidden - check API key permissions');
-          throw new Error('Serper API access forbidden');
+          elizaLogger.error('[Serper] Forbidden - check API key permissions', {
+            data: axiosError.response?.data,
+            headers: axiosError.response?.headers
+          });
+          throw new Error(`Serper API access forbidden: ${JSON.stringify(axiosError.response?.data)}`);
         } else if (axiosError.code === 'ECONNABORTED') {
           elizaLogger.error(`[Serper] Request timeout after ${duration}ms`);
           throw new Error('Serper search timeout');
         }
-        
+
         elizaLogger.error(`[Serper] API error: ${axiosError.message}`, {
           status: axiosError.response?.status,
           data: axiosError.response?.data,
@@ -167,17 +195,17 @@ export class SerperSearchProvider {
       } else {
         elizaLogger.error('[Serper] Unknown error:', error);
       }
-      
+
       throw error;
     }
   }
 
   async searchNews(query: string, maxResults?: number): Promise<SearchResult[]> {
     const startTime = Date.now();
-    
+
     try {
       elizaLogger.info(`[Serper] Searching news for: ${query}`);
-      
+
       const response = await axios.post(
         'https://google.serper.dev/news',
         {
@@ -195,20 +223,29 @@ export class SerperSearchProvider {
         }
       );
 
-      const results: SearchResult[] = response.data.news?.map((item: any) => ({
-        title: item.title,
-        url: item.link,
-        snippet: item.snippet || '',
-        content: JSON.stringify({
-          date: item.date,
-          source: item.source,
-          imageUrl: item.imageUrl,
-        }),
-      })) || [];
+      const results: SearchResult[] =
+        response.data.news?.map((item: any, index: number) => ({
+          title: item.title,
+          url: item.link,
+          snippet: item.snippet || '',
+          content: JSON.stringify({
+            date: item.date,
+            source: item.source,
+            imageUrl: item.imageUrl,
+          }),
+          score: 0.8 - index * 0.05,
+          provider: 'serper',
+          metadata: {
+            language: this.config.language || 'en',
+            type: 'news',
+            date: item.date,
+            source: item.source,
+          },
+        })) || [];
 
       const duration = Date.now() - startTime;
       elizaLogger.info(`[Serper] Found ${results.length} news results in ${duration}ms`);
-      
+
       return results;
     } catch (error) {
       elizaLogger.error('[Serper] News search error:', error);
@@ -216,10 +253,13 @@ export class SerperSearchProvider {
     }
   }
 
-  async searchImages(query: string, maxResults?: number): Promise<Array<{url: string; title: string; source: string}>> {
+  async searchImages(
+    query: string,
+    maxResults?: number
+  ): Promise<Array<{ url: string; title: string; source: string }>> {
     try {
       elizaLogger.info(`[Serper] Searching images for: ${query}`);
-      
+
       const response = await axios.post(
         'https://google.serper.dev/images',
         {
@@ -236,11 +276,13 @@ export class SerperSearchProvider {
         }
       );
 
-      return response.data.images?.map((img: any) => ({
-        url: img.imageUrl,
-        title: img.title,
-        source: img.source,
-      })) || [];
+      return (
+        response.data.images?.map((img: any) => ({
+          url: img.imageUrl,
+          title: img.title,
+          source: img.source,
+        })) || []
+      );
     } catch (error) {
       elizaLogger.error('[Serper] Image search error:', error);
       throw error;
@@ -250,7 +292,7 @@ export class SerperSearchProvider {
   async searchScholar(query: string, maxResults?: number): Promise<SearchResult[]> {
     try {
       elizaLogger.info(`[Serper] Searching Google Scholar for: ${query}`);
-      
+
       const response = await axios.post(
         'https://google.serper.dev/scholar',
         {
@@ -266,20 +308,29 @@ export class SerperSearchProvider {
         }
       );
 
-      const results: SearchResult[] = response.data.organic?.map((item: any) => ({
-        title: item.title,
-        url: item.link,
-        snippet: item.snippet || item.publication_info?.summary || '',
-        content: JSON.stringify({
-          authors: item.publication_info?.authors,
-          year: item.year,
-          citations: item.inline_links?.cited_by?.total,
-          type: 'academic',
-        }),
-      })) || [];
+      const results: SearchResult[] =
+        response.data.organic?.map((item: any, index: number) => ({
+          title: item.title,
+          url: item.link,
+          snippet: item.snippet || item.publication_info?.summary || '',
+          content: JSON.stringify({
+            authors: item.publication_info?.authors,
+            year: item.year,
+            citations: item.inline_links?.cited_by?.total,
+            type: 'academic',
+          }),
+          score: 0.9 - index * 0.05, // Academic results have higher base score
+          provider: 'serper',
+          metadata: {
+            language: this.config.language || 'en',
+            type: 'academic',
+            author: item.publication_info?.authors,
+            publishDate: item.year,
+          },
+        })) || [];
 
       elizaLogger.info(`[Serper] Found ${results.length} scholar results`);
-      
+
       return results;
     } catch (error) {
       elizaLogger.error('[Serper] Scholar search error:', error);
@@ -293,7 +344,7 @@ export class SerperSearchProvider {
       const response = await axios.get('https://google.serper.dev/account', {
         headers: { 'X-API-KEY': this.apiKey },
       });
-      
+
       return {
         searches: response.data.searches || 0,
         limit: response.data.limit || 0,
@@ -304,4 +355,4 @@ export class SerperSearchProvider {
       return null;
     }
   }
-} 
+}

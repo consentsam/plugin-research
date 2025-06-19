@@ -1,14 +1,17 @@
 import { IAgentRuntime, elizaLogger } from '@elizaos/core';
-import { CachedSearchProvider } from './cache';
-import { RateLimitedSearchProvider, SearchProvider, ContentExtractor } from './rate-limiter';
+import { SearchProvider, ContentExtractor } from './rate-limiter';
 import { TavilySearchProvider } from './search-providers/tavily';
 import { SerperSearchProvider } from './search-providers/serper';
-import { DuckDuckGoSearchProvider } from './search-providers/duckduckgo';
-import { StagehandGoogleSearchProvider } from './search-providers/stagehand-google';
+import { AcademicSearchProvider } from './search-providers/academic';
 import { FirecrawlContentExtractor, FirecrawlConfig } from './content-extractors/firecrawl';
 import { PlaywrightContentExtractor } from './content-extractors/playwright';
+import { CachedSearchProvider } from './cache';
+import { RateLimitedSearchProvider } from './rate-limiter';
+import { ExaSearchProvider } from './search-providers/exa';
+import { SerpAPISearchProvider } from './search-providers/serpapi';
+import { StagehandGoogleSearchProvider } from './search-providers/stagehand-google';
 
-export { SearchProvider, ContentExtractor };
+export type { SearchProvider, ContentExtractor };
 
 // Wrapper to make FirecrawlContentExtractor compatible with ContentExtractor interface
 class FirecrawlWrapper implements ContentExtractor {
@@ -19,20 +22,12 @@ class FirecrawlWrapper implements ContentExtractor {
     this.extractor = new FirecrawlContentExtractor(config);
   }
   
-  async extractContent(url: string): Promise<{ content: string; title?: string; metadata?: any }> {
+  async extractContent(url: string): Promise<{ content: string; metadata?: any }> {
     const result = await this.extractor.extractContent(url);
     if (!result) {
-      return { content: '', title: undefined, metadata: undefined };
+      return { content: '', metadata: {} };
     }
-    // Handle both string and ExtractedContent types
-    if (typeof result === 'string') {
-      return { content: result, title: undefined, metadata: undefined };
-    }
-    return {
-      content: result.content || '',
-      title: result.metadata?.title,
-      metadata: result.metadata
-    };
+    return result;
   }
 }
 
@@ -44,20 +39,12 @@ class PlaywrightWrapper implements ContentExtractor {
     this.extractor = new PlaywrightContentExtractor();
   }
   
-  async extractContent(url: string): Promise<{ content: string; title?: string; metadata?: any }> {
+  async extractContent(url: string): Promise<{ content: string; metadata?: any }> {
     const result = await this.extractor.extractContent(url);
     if (!result) {
-      return { content: '', title: undefined, metadata: undefined };
+      return { content: '', metadata: {} };
     }
-    // Handle both string and ExtractedContent types
-    if (typeof result === 'string') {
-      return { content: result, title: undefined, metadata: undefined };
-    }
-    return {
-      content: result.content || '',
-      title: result.metadata?.title,
-      metadata: result.metadata
-    };
+    return result;
   }
 }
 
@@ -112,55 +99,81 @@ class StagehandContentExtractor implements ContentExtractor {
   }
 }
 
-export function createSearchProvider(runtime: IAgentRuntime): SearchProvider | null {
-  let provider: SearchProvider | null = null;
-  
-  // Priority order:
-  // 1. Tavily (if API key present)
-  const tavilyKey = runtime.getSetting('TAVILY_API_KEY');
-  if (tavilyKey) {
-    elizaLogger.info('Using Tavily search provider');
-    provider = new TavilySearchProvider(tavilyKey);
-  }
-  
-  // 2. Serper (if API key present)
-  if (!provider) {
-    const serperKey = runtime.getSetting('SERPER_API_KEY');
-    if (serperKey) {
-      elizaLogger.info('Using Serper search provider');
-      provider = new SerperSearchProvider(serperKey);
-    }
-  }
-  
-  // 3. Stagehand/Google (if browserbase available)
-  if (!provider) {
-    try {
-      const stagehandService = runtime.getService('stagehand');
-      if (stagehandService) {
-        elizaLogger.info('Using Stagehand Google search provider');
-        provider = new StagehandGoogleSearchProvider(runtime);
+export function createSearchProvider(type: string, runtime: any): SearchProvider {
+  const apiKey = runtime.getSetting(`${type.toUpperCase()}_API_KEY`);
+
+  switch (type) {
+    case 'tavily':
+      if (!apiKey) {
+        elizaLogger.info('Tavily API key not found, search features will be limited');
+        // Return a mock provider that returns empty results
+        return {
+          name: 'tavily-mock',
+          search: async () => []
+        };
       }
-    } catch (e) {
-      // Service not available
-    }
+      return new TavilySearchProvider({ apiKey });
+
+    case 'serper':
+      if (!apiKey) {
+        elizaLogger.info('Serper API key not found, search features will be limited');
+        return {
+          name: 'serper-mock',
+          search: async () => []
+        };
+      }
+      return new SerperSearchProvider({ apiKey });
+      
+    case 'exa':
+      if (!apiKey) {
+        elizaLogger.info('Exa API key not found, search features will be limited');
+        return {
+          name: 'exa-mock',
+          search: async () => []
+        };
+      }
+      return new ExaSearchProvider({ apiKey });
+      
+    case 'serpapi':
+      if (!apiKey) {
+        elizaLogger.info('SerpAPI key not found, search features will be limited');
+        return {
+          name: 'serpapi-mock', 
+          search: async () => []
+        };
+      }
+      return new SerpAPISearchProvider({ apiKey });
+
+    case 'academic':
+      return new AcademicSearchProvider(runtime);
+
+    case 'web':
+    default:
+      // Try different providers in order of preference
+      const providers = ['TAVILY', 'EXA', 'SERPAPI', 'SERPER'];
+      for (const provider of providers) {
+        const key = runtime.getSetting(`${provider}_API_KEY`);
+        if (key) {
+          elizaLogger.info(`Using ${provider} as web search provider`);
+          switch (provider) {
+            case 'TAVILY':
+              return new TavilySearchProvider({ apiKey: key });
+            case 'EXA':
+              return new ExaSearchProvider({ apiKey: key });
+            case 'SERPAPI':
+              return new SerpAPISearchProvider({ apiKey: key });
+            case 'SERPER':
+              return new SerperSearchProvider({ apiKey: key });
+          }
+        }
+      }
+      
+      elizaLogger.info('No web search provider configured, using mock provider');
+      return {
+        name: 'mock-web',
+        search: async () => []
+      };
   }
-  
-  // 4. DuckDuckGo (always available as fallback)
-  if (!provider) {
-    elizaLogger.info('Using DuckDuckGo search provider (no API key required)');
-    provider = new DuckDuckGoSearchProvider();
-  }
-  
-  // Wrap with rate limiting and caching
-  if (provider) {
-    const rateLimited = new RateLimitedSearchProvider(provider, {
-      tokensPerInterval: 60,
-      interval: 'minute'
-    });
-    return new CachedSearchProvider(rateLimited);
-  }
-  
-  return null;
 }
 
 export function createContentExtractor(runtime: IAgentRuntime): ContentExtractor | null {
@@ -186,4 +199,22 @@ export function createContentExtractor(runtime: IAgentRuntime): ContentExtractor
   // 3. Playwright (as fallback - can get blocked)
   elizaLogger.info('Using Playwright content extractor (may get blocked on some sites)');
   return new PlaywrightWrapper();
+}
+
+export function createAcademicSearchProvider(runtime: IAgentRuntime): SearchProvider {
+  const semanticScholarKey = runtime.getSetting('SEMANTIC_SCHOLAR_API_KEY');
+  elizaLogger.info('Using Academic search provider (Semantic Scholar, arXiv, CrossRef)');
+  
+  const provider = new AcademicSearchProvider({
+    semanticScholarApiKey: semanticScholarKey,
+    timeout: 30000,
+  });
+  
+  // Wrap with rate limiting and caching
+  const rateLimited = new RateLimitedSearchProvider(provider, {
+    tokensPerInterval: 100, // Academic sources allow more requests
+    interval: 'minute'
+  });
+  
+  return new CachedSearchProvider(rateLimited);
 } 

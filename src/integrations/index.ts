@@ -1,7 +1,6 @@
 // Search Providers
 export * from './search-providers/tavily';
 export * from './search-providers/serper';
-export * from './search-providers/duckduckgo';
 export * from './search-providers/stagehand-google';
 
 // Content Extractors

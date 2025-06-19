@@ -7,13 +7,15 @@ The Research Plugin automatically detects and uses browserbase when available, p
 ## Setup
 
 1. Install both plugins:
+
 ```bash
-bun add @elizaos/plugin-research @elizaos/plugin-browserbase
+bun add @elizaos/plugin-research @elizaos/plugin-stagehand
 # or
-npm install @elizaos/plugin-research @elizaos/plugin-browserbase
+npm install @elizaos/plugin-research @elizaos/plugin-stagehand
 ```
 
 2. Configure environment variables:
+
 ```env
 # Browserbase Configuration (Optional but recommended)
 BROWSERBASE_API_KEY=your_api_key
@@ -26,15 +28,16 @@ ANTHROPIC_API_KEY=your_anthropic_key
 ```
 
 3. Load both plugins in your ElizaOS config:
+
 ```typescript
 import { researchPlugin } from '@elizaos/plugin-research';
-import { browserbasePlugin } from '@elizaos/plugin-browserbase';
+import { browserbasePlugin } from '@elizaos/plugin-stagehand';
 
 const config = {
   plugins: [
-    browserbasePlugin,  // Load browserbase first
-    researchPlugin      // Research will auto-detect it
-  ]
+    browserbasePlugin, // Load browserbase first
+    researchPlugin, // Research will auto-detect it
+  ],
 };
 ```
 
@@ -49,12 +52,14 @@ When browserbase is available, the research plugin will:
 ## Benefits
 
 ### Without Browserbase (Default)
+
 - Uses DuckDuckGo (free but limited)
 - Uses Playwright (often gets blocked)
 - Timeouts on many sites (Forbes, WSJ, etc.)
 - No CAPTCHA solving
 
 ### With Browserbase
+
 - Uses Google search via Stagehand
 - AI-powered content extraction
 - Bypasses most anti-bot measures
@@ -66,7 +71,7 @@ When browserbase is available, the research plugin will:
 ```typescript
 // The agent will automatically use browserbase if available
 const response = await agent.sendMessage({
-  text: "start_research Latest AI breakthroughs in 2024"
+  text: 'start_research Latest AI breakthroughs in 2024',
 });
 
 // You'll see in logs:
@@ -79,6 +84,7 @@ const response = await agent.sendMessage({
 The research plugin has a smart fallback system:
 
 1. **Search Providers** (in order):
+
    - Tavily (if API key provided)
    - Serper (if API key provided)
    - Stagehand/Google (if browserbase available)
@@ -99,6 +105,7 @@ cd packages/plugin-research
 ```
 
 You should see:
+
 ```
 📋 Configuration:
    Search Provider: Stagehand/Google
@@ -108,15 +115,18 @@ You should see:
 ## Troubleshooting
 
 ### "No stagehand service found"
+
 - Ensure browserbasePlugin is loaded BEFORE researchPlugin
 - Check that browserbase plugin initialized correctly
 
 ### Still getting blocked
+
 - Verify BROWSERBASE_API_KEY is set correctly
 - Check browserbase dashboard for usage/errors
 - Some sites may still block even with browserbase
 
 ### Slow performance
+
 - Browserbase sessions take time to initialize
 - Consider caching results for repeated queries
-- Use fewer search results (maxSearchResults: 5) 
+- Use fewer search results (maxSearchResults: 5)

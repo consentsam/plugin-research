@@ -1,16 +1,24 @@
 # ElizaOS Research Plugin
 
-A powerful deep research plugin for ElizaOS that enables AI agents to conduct comprehensive multi-phase internet research with intelligent analysis and synthesis.
+A powerful deep research plugin for ElizaOS that enables AI agents to conduct comprehensive multi-phase internet research with intelligent analysis and synthesis. Designed to achieve top performance on DeepResearch Bench.
 
 ## Features
 
 - 🔍 **Multi-phase Research Process**: Planning → Searching → Analyzing → Synthesizing → Reporting
-- 🌐 **Multiple Search Providers**: DuckDuckGo (free), Tavily, Serper, and Stagehand integration
-- 📄 **Content Extraction**: Browserbase/Stagehand (preferred), Playwright, and Firecrawl
+- 🌐 **Multiple Search Providers**: Tavily, Serper, SerpAPI, Exa, and Stagehand integration
+- 📄 **Content Extraction**: Browserbase/Stagehand (preferred), Firecrawl, and Playwright
 - 💎 **DeFi Specialization**: 10+ specialized DeFi research scenarios
 - 📊 **Comprehensive Reports**: Automated report generation with citations
 - ⏸️ **Research Control**: Pause, resume, and monitor research progress
 - 🧪 **Extensive Testing**: Unit tests and real-world E2E test scenarios
+- ⚡ **Rate Limiting**: Automatic rate limiting to avoid API quota issues
+- 🧠 **Parallel Processing**: Concurrent searches and content extraction for speed
+- 🧪 **Research Evaluation**: Built-in quality assessment using RACE and FACT frameworks
+- 🏆 **DeepResearch Bench Compatible**: Supports all 22 research domains
+
+## Prerequisites
+
+Node.js 18+ or Bun runtime
 
 ## Installation
 
@@ -20,25 +28,36 @@ npm install @elizaos/plugin-research
 
 ## Configuration
 
-### Environment Variables
+Set up the following environment variables in your `.env` file:
 
-```env
-# Optional - Search Providers (defaults to DuckDuckGo if not set)
-TAVILY_API_KEY=your_tavily_api_key
-SERPER_API_KEY=your_serper_api_key
+```bash
+# Search providers (at least one required)
+TAVILY_API_KEY=your-tavily-api-key       # Recommended - best for general web search
+SERPER_API_KEY=your-serper-api-key       # Alternative to Tavily
+SERPAPI_API_KEY=your-serpapi-api-key     # Good for Google results
+EXA_API_KEY=your-exa-api-key             # Neural search, great for research
 
-# Optional - Content Extractors (defaults to Playwright if not set)
-FIRECRAWL_API_KEY=your_firecrawl_api_key
+# Content extraction (optional but recommended)
+FIRECRAWL_API_KEY=your-firecrawl-key     # Reliable content extraction
+PLAYWRIGHT_TIMEOUT=30000                  # Timeout for Playwright (fallback)
 
-# Research Settings
-RESEARCH_MAX_RESULTS=10
-RESEARCH_TIMEOUT=300000
-RESEARCH_ENABLE_CITATIONS=true
-RESEARCH_ENABLE_IMAGES=true
-RESEARCH_LANGUAGE=en
+# Academic search (optional)
+SEMANTIC_SCHOLAR_API_KEY=your-key         # For academic papers (currently may have issues)
+
+# General Settings
+RESEARCH_MAX_RESULTS=10          # Max search results per query
+RESEARCH_TIMEOUT=300000          # Timeout in milliseconds
+RESEARCH_ENABLE_CITATIONS=true   # Enable citation tracking
+RESEARCH_ENABLE_IMAGES=true      # Enable image extraction
+RESEARCH_LANGUAGE=en             # Preferred language
+
+# Domain-Specific Settings
+RESEARCH_DEPTH=moderate          # surface|moderate|deep|phd-level
+RESEARCH_PARALLEL_SEARCHES=3     # Number of parallel searches
+RESEARCH_CACHE_TTL=3600         # Cache TTL in seconds
 ```
 
-## Usage
+## Quick Start
 
 ### Basic Usage
 
@@ -54,30 +73,11 @@ const agent = new Agent({
 
 ### Available Actions
 
-1. **start_research** - Start a new research project
-   ```
-   "Research the latest developments in quantum computing"
-   ```
-
-2. **check_research_status** - Check status of ongoing research
-   ```
-   "What's the status of my research?"
-   ```
-
-3. **get_research_report** - Get the final research report
-   ```
-   "Show me the research report"
-   ```
-
-4. **pause_research** - Pause an active research project
-   ```
-   "Pause the research"
-   ```
-
-5. **resume_research** - Resume a paused research project
-   ```
-   "Resume the research"
-   ```
+1. **START_RESEARCH** - Initiates a new research project
+2. **SEARCH_AND_EXTRACT** - Searches and extracts content from sources
+3. **SYNTHESIZE_RESEARCH** - Analyzes and synthesizes research findings
+4. **REFINE_RESEARCH_QUERY** - Refines research queries based on findings
+5. **EVALUATE_RESEARCH** - Evaluates research quality using RACE/FACT
 
 ### DeFi-Specific Actions
 
@@ -89,95 +89,37 @@ const agent = new Agent({
 - **comprehensive_defi_analysis** - Multi-area DeFi analysis
 - **setup_defi_monitoring** - Real-time DeFi monitoring
 
-## Architecture
-
-### Research Phases
-
-1. **Planning**: Creates a research strategy based on the query
-2. **Searching**: Searches multiple sources for relevant information
-3. **Analyzing**: Extracts key insights and patterns
-4. **Synthesizing**: Organizes findings into coherent categories
-5. **Reporting**: Generates comprehensive report with citations
+## API Providers
 
 ### Search Providers
 
-- **DuckDuckGo**: Free, no API key required (default)
-- **Tavily**: AI-optimized search (requires API key)
-- **Serper**: Google search results (requires API key)
-- **Stagehand**: Browser-based search via browserbase
+- **Tavily**: High-quality web search with content extraction (Recommended)
+- **Serper**: Google search results API
+- **SerpAPI**: Another Google search API with more features
+- **Exa**: Neural search with similarity and academic paper search
+- **Stagehand**: Google search via browser automation (requires Browserbase)
 
-### Content Extractors (Priority Order)
+### Content Extraction
 
-1. **Browserbase/Stagehand**: AI-powered extraction via browserbase (preferred - avoids blocking)
-   - Automatically used if browserbase plugin is installed
-   - Uses real browser automation with AI extraction
-   - Best success rate on sites that block scrapers
+- **Firecrawl**: Fast and reliable API-based extraction (Recommended)
+- **Browserbase/Stagehand**: AI-powered extraction via browser automation
+- **Playwright**: Direct browser automation (fallback, may get blocked)
 
-2. **Firecrawl**: API-based content extraction (requires API key)
-   - Fast and reliable when available
-   - Good for high-volume extraction
+## Setting up API Keys
 
-3. **Playwright**: Browser automation for content extraction (fallback)
-   - Free but may get blocked by some sites
-   - Uses headless browser automation
+### 1. Search Provider (Required - Choose One)
 
-### Why Browserbase is Preferred
-
-Many websites block automated scrapers and headless browsers. Browserbase/Stagehand provides:
-- Real browser fingerprints that appear human
-- AI-powered content extraction that adapts to different page structures
-- Built-in handling of anti-bot measures
-- Cloud-based execution that avoids IP blocking
-
-To enable browserbase:
-```bash
-npm install @elizaos/plugin-browserbase
-```
-
-## Examples
-
-### Simple Research
-
-```typescript
-// User: "Research the impact of AI on healthcare in 2024"
-// Assistant: "I'll start a deep research project on the impact of AI on healthcare in 2024."
-
-// The plugin will:
-// 1. Create a research plan
-// 2. Search for relevant sources
-// 3. Extract and analyze content
-// 4. Generate a comprehensive report
-```
-
-### DeFi Security Research
-
-```typescript
-// User: "Research security vulnerabilities in Aave v3"
-// Assistant: "I'll conduct a comprehensive security analysis of Aave v3."
-
-// Specialized analysis includes:
-// - Known vulnerabilities
-// - Audit reports
-// - Best practices
-// - Mitigation strategies
-```
+One search provider is required: Either `TAVILY_API_KEY`, `SERPER_API_KEY`, `SERPAPI_API_KEY`, or `EXA_API_KEY`
 
 ## Testing
 
-The plugin includes comprehensive test coverage:
-
-### Unit Tests
 ```bash
+# Run unit tests
 npm test
-```
 
-### Real-World E2E Tests
-- Feature Development Research
-- Person Background Research
-- Breaking News Research
-- Market Intelligence
-- Technical Problem Solving
-- Academic Research
+# Test API integrations
+bun run src/scripts/test-apis.ts
+```
 
 ## Advanced Features
 
