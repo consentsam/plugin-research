@@ -4,6 +4,7 @@ import { ResearchEvaluator } from './evaluation/research-evaluator';
 import { SearchResultProcessor } from './processing/result-processor';
 import { RelevanceAnalyzer } from './processing/relevance-analyzer';
 import { ResearchLogger } from './processing/research-logger';
+import { safeModelCall } from './utils/model-error-logger';
 import {
   ContentExtractor,
   createContentExtractor,
@@ -47,6 +48,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { ClaimVerifier } from './verification/claim-verifier';
 import { RESEARCH_PROMPTS, formatPrompt, getPromptConfig } from './prompts/research-prompts';
+import { jsonrepair } from 'jsonrepair';
 
 // Factory for creating search providers and content extractors
 class SearchProviderFactory {
@@ -82,6 +84,30 @@ class SearchProviderFactory {
   }
 }
 
+// Helper to map env depth string to enum
+const getDepthFromEnv = (): ResearchDepth | undefined => {
+  switch ((process.env.RESEARCH_DEPTH || '').toLowerCase()) {
+    case 'surface':
+      return ResearchDepth.SURFACE;
+    case 'moderate':
+      return ResearchDepth.MODERATE;
+    case 'deep':
+      return ResearchDepth.DEEP;
+    case 'phd-level':
+      return ResearchDepth.PHD_LEVEL;
+    default:
+      return undefined;
+  }
+};
+
+// Helper to parse parallel searches env var
+const getParallelSearchesFromEnv = (): number | undefined => {
+  const raw = process.env.RESEARCH_PARALLEL_SEARCHES;
+  if (!raw) return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+};
+
 const DEFAULT_CONFIG: ResearchConfig = {
   maxSearchResults: 30, // Increased for more comprehensive coverage
   maxDepth: 5, // Deeper research iterations
@@ -90,11 +116,11 @@ const DEFAULT_CONFIG: ResearchConfig = {
   enableImages: false,
   searchProviders: ['web', 'academic', 'github'], // Include GitHub for code research by default
   language: 'en',
-  researchDepth: ResearchDepth.DEEP, // Default to deep research
+  researchDepth: getDepthFromEnv() ?? ResearchDepth.DEEP, // Respect env variable if provided
   domain: ResearchDomain.GENERAL,
   evaluationEnabled: true,
   cacheEnabled: true,
-  parallelSearches: 5, // More parallel searches for efficiency
+  parallelSearches: getParallelSearchesFromEnv() ?? 5, // Override via env var
   retryAttempts: 3,
   qualityThreshold: 0.85, // Higher quality threshold
 };
@@ -113,6 +139,7 @@ export class ResearchService extends Service {
   private performanceData: Map<string, PerformanceMetrics> = new Map();
   private claimVerifier: ClaimVerifier;
 
+  static serviceType = "research";   // 👈 new line
   static serviceName = 'research';
   public serviceName = 'research';
 
@@ -245,9 +272,8 @@ export class ResearchService extends Service {
   private async extractDomain(query: string): Promise<ResearchDomain> {
     // Use embeddings-based classification for more accurate domain detection
     try {
-      if (this.runtime.useModel) {
-        // Create domain examples for similarity matching
-        const domainExamples = {
+      // Create domain examples for similarity matching
+      const domainExamples = {
           [ResearchDomain.PHYSICS]: [
             "quantum mechanics and particle physics research",
             "theoretical physics and relativity studies",
@@ -291,9 +317,15 @@ export class ResearchService extends Service {
         };
         
         // Get query embedding
-        const queryEmbedding = await this.runtime.useModel(ModelType.TEXT_EMBEDDING, {
-          text: query
-        });
+        const queryEmbedding = await safeModelCall(
+          this.runtime,
+          ModelType.TEXT_EMBEDDING,
+          {
+            prompt: query, // TEXT_EMBEDDING needs prompt format
+            text: query    // Keep text as fallback
+          },
+          'ResearchService.extractDomain.queryEmbedding'
+        );
         
         let bestDomain = ResearchDomain.GENERAL;
         let bestSimilarity = 0;
@@ -302,9 +334,15 @@ export class ResearchService extends Service {
         for (const [domain, examples] of Object.entries(domainExamples)) {
           for (const example of examples) {
             try {
-              const exampleEmbedding = await this.runtime.useModel(ModelType.TEXT_EMBEDDING, {
-                text: example
-              });
+              const exampleEmbedding = await safeModelCall(
+                this.runtime,
+                ModelType.TEXT_EMBEDDING,
+                {
+                  prompt: example, // TEXT_EMBEDDING needs prompt format
+                  text: example    // Keep text as fallback
+                },
+                'ResearchService.extractDomain.exampleEmbedding'
+              );
               
               // Calculate cosine similarity
               const similarity = this.calculateCosineSimilarity(queryEmbedding as number[], exampleEmbedding as number[]);
@@ -324,14 +362,12 @@ export class ResearchService extends Service {
           elizaLogger.info(`Domain classified via embeddings: ${bestDomain} (similarity: ${bestSimilarity.toFixed(3)})`);
           return bestDomain;
         }
-      }
     } catch (error) {
       elizaLogger.warn('Error using embeddings for domain classification, falling back to LLM:', error);
     }
     
     // Fallback: Use LLM classification
-    if (this.runtime.useModel) {
-      const prompt = `Analyze this research query and determine the most appropriate research domain.
+    const prompt = `Analyze this research query and determine the most appropriate research domain.
 
 Query: "${query}"
 
@@ -346,43 +382,43 @@ Consider:
 
 Respond with ONLY the domain name from the list above. Be precise.`;
 
-      try {
-        const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-          messages: [
-            { 
-              role: 'system', 
-              content: 'You are an expert research domain classifier. Analyze the query and respond with only the most appropriate domain name from the provided list.' 
-            },
-            { role: 'user', content: prompt }
-          ],
+    try {
+      const response = await safeModelCall(
+        this.runtime,
+        ModelType.TEXT_LARGE,
+        {
+          prompt: `System: You are an expert research domain classifier. Analyze the query and respond with only the most appropriate domain name from the provided list.
+
+User: ${prompt}`,
           temperature: 0.1, // Low temperature for consistent classification
-        });
+        },
+        'ResearchService.extractDomain.LLM'
+      );
 
-        const domainText = (
-          typeof response === 'string' ? response : (response as any).content || ''
-        ).trim().toLowerCase();
+      const domainText = (
+        typeof response === 'string' ? response : (response as any).content || ''
+      ).trim().toLowerCase();
 
-        // Exact match first
-        for (const domain of Object.values(ResearchDomain)) {
-          if (domainText === domain.toLowerCase()) {
-            elizaLogger.info(`Domain classified via LLM: ${domain}`);
-            return domain as ResearchDomain;
-          }
+      // Exact match first
+      for (const domain of Object.values(ResearchDomain)) {
+        if (domainText === domain.toLowerCase()) {
+          elizaLogger.info(`Domain classified via LLM: ${domain}`);
+          return domain as ResearchDomain;
         }
-
-        // Partial match fallback
-        for (const domain of Object.values(ResearchDomain)) {
-          if (domainText.includes(domain.toLowerCase().replace('_', ' ')) || 
-              domainText.includes(domain.toLowerCase().replace('_', ''))) {
-            elizaLogger.info(`Domain classified via LLM (partial match): ${domain}`);
-            return domain as ResearchDomain;
-          }
-        }
-
-        elizaLogger.warn(`Could not extract domain from LLM response: ${domainText}`);
-      } catch (error) {
-        elizaLogger.warn('Error using LLM for domain extraction, falling back to heuristics:', error);
       }
+
+      // Partial match fallback
+      for (const domain of Object.values(ResearchDomain)) {
+        if (domainText.includes(domain.toLowerCase().replace('_', ' ')) || 
+            domainText.includes(domain.toLowerCase().replace('_', ''))) {
+          elizaLogger.info(`Domain classified via LLM (partial match): ${domain}`);
+          return domain as ResearchDomain;
+        }
+      }
+
+      elizaLogger.warn(`Could not extract domain from LLM response: ${domainText}`);
+    } catch (error) {
+      elizaLogger.warn('Error using LLM for domain extraction, falling back to heuristics:', error);
     }
     
     // Final fallback: Simple keyword matching
@@ -499,9 +535,8 @@ Respond with ONLY the domain name from the list above. Be precise.`;
       return TaskType.PREDICTIVE;
     }
     
-    // If we have a working runtime.useModel, use it for more accurate classification
-    if (this.runtime.useModel) {
-      const prompt = `Analyze this research query and determine the primary task type.
+    // Use model for more accurate classification
+    const prompt = `Analyze this research query and determine the primary task type.
 
 Query: "${query}"
 
@@ -515,40 +550,40 @@ Task Types:
 
 Respond with ONLY the task type (e.g., "analytical"). Be precise.`;
 
-      try {
-        const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-          messages: [
-            { 
-              role: 'system', 
-              content: 'You are a research task classifier. Respond with only the task type, nothing else.' 
-            },
-            { role: 'user', content: prompt }
-          ],
+    try {
+      const response = await safeModelCall(
+        this.runtime,
+        ModelType.TEXT_LARGE,
+        {
+          prompt: `System: You are a research task classifier. Respond with only the task type, nothing else.
+
+User: ${prompt}`,
           temperature: 0.3,
-        });
+        },
+        'ResearchService.extractTaskType'
+      );
 
-        const taskText = (
-          typeof response === 'string' ? response : (response as any).content || ''
-        ).trim().toLowerCase();
+      const taskText = (
+        typeof response === 'string' ? response : (response as any).content || ''
+      ).trim().toLowerCase();
 
-        // Check for exact matches
-        for (const taskType of Object.values(TaskType)) {
-          if (taskText === taskType.toLowerCase()) {
-            return taskType as TaskType;
-          }
+      // Check for exact matches
+      for (const taskType of Object.values(TaskType)) {
+        if (taskText === taskType.toLowerCase()) {
+          return taskType as TaskType;
         }
-
-        // Check for keyword matches
-        if (taskText.includes('compar')) return TaskType.COMPARATIVE;
-        if (taskText.includes('analy')) return TaskType.ANALYTICAL;
-        if (taskText.includes('synth')) return TaskType.SYNTHETIC;
-        if (taskText.includes('eval')) return TaskType.EVALUATIVE;
-        if (taskText.includes('pred') || taskText.includes('forecast')) return TaskType.PREDICTIVE;
-
-        elizaLogger.warn(`Could not extract task type from response: ${taskText}`);
-      } catch (error) {
-        elizaLogger.warn('Error using model for task type extraction, falling back to heuristics:', error);
       }
+
+      // Check for keyword matches
+      if (taskText.includes('compar')) return TaskType.COMPARATIVE;
+      if (taskText.includes('analy')) return TaskType.ANALYTICAL;
+      if (taskText.includes('synth')) return TaskType.SYNTHETIC;
+      if (taskText.includes('eval')) return TaskType.EVALUATIVE;
+      if (taskText.includes('pred') || taskText.includes('forecast')) return TaskType.PREDICTIVE;
+
+      elizaLogger.warn(`Could not extract task type from response: ${taskText}`);
+    } catch (error) {
+      elizaLogger.warn('Error using model for task type extraction, falling back to heuristics:', error);
     }
     
     return TaskType.EXPLORATORY;
@@ -660,11 +695,13 @@ Respond with ONLY the task type (e.g., "analytical"). Be precise.`;
     project.phase = phase;
     project.updatedAt = Date.now();
 
-    // Update phase timing
+    // Update performance metrics
     if (project.metadata.performanceMetrics) {
       const phaseKey = previousPhase;
       if (phaseKey && project.metadata.performanceMetrics.phaseBreakdown[phaseKey]) {
         project.metadata.performanceMetrics.phaseBreakdown[phaseKey].endTime = Date.now();
+        project.metadata.performanceMetrics.phaseBreakdown[phaseKey].duration = 
+          Date.now() - project.metadata.performanceMetrics.phaseBreakdown[phaseKey].startTime;
       }
 
       project.metadata.performanceMetrics.phaseBreakdown[phase] = {
@@ -676,8 +713,19 @@ Respond with ONLY the task type (e.g., "analytical"). Be precise.`;
       };
     }
 
-    // Emit progress
-    this.emitProgress(project, `Starting ${phase} phase`);
+    // Log phase transition
+    await this.researchLogger.logPhaseTransition(
+      project.id,
+      previousPhase,
+      phase,
+      {
+        totalSources: project.sources.length,
+        totalFindings: project.findings.length,
+        duration: Date.now() - project.createdAt
+      }
+    );
+
+    this.emitProgress(project, `Entering ${phase} phase`);
   }
 
   private async executeSearchWithRelevance(
@@ -815,16 +863,25 @@ Respond with ONLY the task type (e.g., "analytical"). Be precise.`;
       
       // Extract content if not already present
       let fullContent = result.content;
+      let extractionMeta: any = undefined; // capture metadata from extractor for later diagnostics
       if (!fullContent) {
         // Check if it's a PDF
         if (PDFExtractor.isPDFUrl(result.url)) {
           const pdfExtractor = this.searchProviderFactory.getPDFExtractor();
           const pdfContent = await pdfExtractor.extractFromURL(result.url);
           fullContent = pdfContent?.markdown || pdfContent?.content || '';
+          extractionMeta = {
+            ...(pdfContent?.metadata || {}),
+            extractorUsed: 'PDFExtractor'
+          };
         } else {
           const contentExtractor = this.searchProviderFactory.getContentExtractor();
           const extracted = await contentExtractor.extractContent(result.url);
           fullContent = extracted.content;
+          extractionMeta = {
+            ...(extracted?.metadata || {}),
+            extractorUsed: contentExtractor.constructor.name
+          };
         }
       }
 
@@ -846,7 +903,8 @@ Respond with ONLY the task type (e.g., "analytical"). Be precise.`;
         metadata: {
           language: result.metadata?.language || 'en',
           journal: result.metadata?.type === 'academic' ? result.metadata.domain : undefined,
-        },
+          ...(extractionMeta || {}),
+        } as any,
       };
 
       return source;
@@ -940,13 +998,21 @@ Respond with ONLY the task type (e.g., "analytical"). Be precise.`;
     elizaLogger.info(`[ResearchService] Analyzing ${project.sources.length} sources`);
     
     for (const source of project.sources) {
-      // Use fullContent if available, otherwise fall back to snippet
-      const contentToAnalyze = source.fullContent || source.snippet || source.title;
-      
-      if (!contentToAnalyze) {
-        elizaLogger.warn(`[ResearchService] No content available for source: ${source.url}`);
+      // Early validation of source content to avoid unnecessary model calls
+      if ((source.metadata as any)?.extractionFailed) {
+        elizaLogger.warn(`[ResearchService] Skipping source due to extraction failure: ${source.url}`);
         continue;
       }
+
+      // Determine available content for analysis
+      const preliminaryContent = source.fullContent || source.snippet || source.title;
+      if (!preliminaryContent || preliminaryContent.trim().length < 100) {
+        elizaLogger.warn(`[ResearchService] Insufficient content for analysis (<100 chars): ${source.url}`);
+        continue;
+      }
+
+      // Use validated content variable going forward
+      const contentToAnalyze = preliminaryContent;
 
       // Extract key findings
       const findings = await this.extractFindings(source, project.query, contentToAnalyze);
@@ -1015,13 +1081,9 @@ Format as JSON array:
 }]`;
 
     const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a research analyst extracting key findings from sources.',
-        },
-        { role: 'user', content: prompt },
-      ],
+      prompt: `System: You are a research analyst extracting key findings from sources.
+
+User: ${prompt}`,
     });
 
     try {
@@ -1070,13 +1132,9 @@ Format as JSON array:
 }]`;
 
     const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a fact-checker extracting verifiable claims from sources.',
-        },
-        { role: 'user', content: prompt },
-      ],
+      prompt: `System: You are a fact-checker extracting verifiable claims from sources.
+
+User: ${prompt}`,
     });
 
     try {
@@ -1084,7 +1142,14 @@ Format as JSON array:
       // Try to extract JSON from the response
       const jsonMatch = responseContent.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const claims = JSON.parse(jsonMatch[0]);
+        let claimsRaw: any;
+        try {
+          claimsRaw = JSON.parse(jsonrepair(jsonMatch[0]));
+        } catch {
+          // Fallback to direct JSON.parse if jsonrepair fails (will throw if invalid)
+          claimsRaw = JSON.parse(jsonMatch[0]);
+        }
+        const claims = claimsRaw;
         return claims.map((claim: any) => ({
           id: uuidv4(),
           statement: claim.statement,
@@ -1160,7 +1225,7 @@ Create a comprehensive synthesis that:
     elizaLogger.debug(`[ResearchService] Calling LLM for category synthesis with prompt length: ${prompt.length}`);
     
     const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-      messages: [{ role: 'user', content: prompt }],
+      prompt: prompt,
     });
 
     const result = typeof response === 'string' ? response : (response as any).content || '';
@@ -1192,7 +1257,7 @@ Create a comprehensive synthesis that:
     elizaLogger.debug(`[ResearchService] Calling LLM for overall synthesis with prompt length: ${prompt.length}`);
     
     const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-      messages: [{ role: 'user', content: prompt }],
+      prompt: prompt,
     });
 
     const result = typeof response === 'string' ? response : (response as any).content || '';
@@ -1286,10 +1351,9 @@ Create a comprehensive synthesis that:
     
     const config = getPromptConfig('analysis');
     const response = await this.runtime.useModel(config.modelType, {
-      messages: [
-        { role: 'system', content: 'You are an expert research analyst.' },
-        { role: 'user', content: prompt }
-      ],
+      prompt: `System: You are an expert research analyst.
+
+User: ${prompt}`,
       temperature: config.temperature,
       max_tokens: config.maxTokens,
     });
@@ -1327,10 +1391,9 @@ Create a comprehensive synthesis that:
     
     const config = getPromptConfig('extraction');
     const response = await this.runtime.useModel(config.modelType, {
-      messages: [
-        { role: 'system', content: 'Extract specific, verifiable claims from the text.' },
-        { role: 'user', content: prompt }
-      ],
+      prompt: `System: Extract specific, verifiable claims from the text.
+
+User: ${prompt}`,
       temperature: config.temperature,
       max_tokens: config.maxTokens,
     });
@@ -1657,10 +1720,9 @@ Create a 400-500 word executive summary that:
 Focus on being comprehensive yet accessible, suitable for both technical and non-technical audiences.`;
 
     const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-      messages: [
-        { role: 'system', content: 'You are a research analyst creating executive summaries for comprehensive research reports.' },
-        { role: 'user', content: prompt }
-      ],
+      prompt: `System: You are a research analyst creating executive summaries for comprehensive research reports.
+
+User: ${prompt}`,
     });
 
     return typeof response === 'string' ? response : (response as any).content || '';
@@ -1689,10 +1751,9 @@ Create a detailed 800-1200 word analysis that:
 Use a scholarly tone with clear subsections. Be thorough and analytical.`;
 
     const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-      messages: [
-        { role: 'system', content: 'You are a research analyst writing comprehensive literature reviews.' },
-        { role: 'user', content: prompt }
-      ],
+      prompt: `System: You are a research analyst writing comprehensive literature reviews.
+
+User: ${prompt}`,
     });
 
     return typeof response === 'string' ? response : (response as any).content || '';
@@ -1721,10 +1782,9 @@ Create a 400-600 word methodology section that describes:
 Be specific about the systematic approach taken and justify methodological choices.`;
 
     const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-      messages: [
-        { role: 'system', content: 'You are a research methodologist describing systematic research approaches.' },
-        { role: 'user', content: prompt }
-      ],
+      prompt: `System: You are a research methodologist describing systematic research approaches.
+
+User: ${prompt}`,
     });
 
     return typeof response === 'string' ? response : (response as any).content || '';
@@ -1757,10 +1817,9 @@ Create a 600-800 word section that:
 Be forward-looking and actionable while grounding recommendations in the evidence found.`;
 
     const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-      messages: [
-        { role: 'system', content: 'You are a research strategist identifying implications and future research directions.' },
-        { role: 'user', content: prompt }
-      ],
+      prompt: `System: You are a research strategist identifying implications and future research directions.
+
+User: ${prompt}`,
     });
 
     return typeof response === 'string' ? response : (response as any).content || '';
@@ -1861,14 +1920,18 @@ Your task:
 
 Maintain the academic tone and ensure all claims are well-supported by the source material.`;
 
-    const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-      messages: [
-        { role: 'system', content: 'You are a research analyst enhancing reports with detailed source analysis.' },
-        { role: 'user', content: prompt }
-      ],
-    });
+    // Use safeModelCall with plain prompt to ensure compatibility with text models
+    const response = await safeModelCall(
+      this.runtime,
+      ModelType.TEXT_LARGE,
+      {
+        prompt: `System: You are a research analyst enhancing reports with detailed source analysis.\n\nUser: ${prompt}`,
+        temperature: 0.5,
+      },
+      'ResearchService.enhanceSection'
+    );
 
-    const enhancedContent = typeof response === 'string' ? response : (response as any).content || section.content;
+    const enhancedContent = typeof response === 'string' ? response : (response as any)?.content || section.content;
     elizaLogger.info(`[ResearchService] Enhanced section "${section.heading}" from ${section.content.length} to ${enhancedContent.length} characters`);
     
     return enhancedContent;
@@ -1903,10 +1966,9 @@ Create a comprehensive analysis (300-400 words) that:
 Be critical yet fair in your assessment.`;
 
       const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-        messages: [
-          { role: 'system', content: 'You are a research analyst conducting detailed source evaluations.' },
-          { role: 'user', content: analysisPrompt }
-        ],
+        prompt: `System: You are a research analyst conducting detailed source evaluations.
+
+User: ${analysisPrompt}`,
       });
 
       const analysis = typeof response === 'string' ? response : (response as any).content || '';
@@ -2335,20 +2397,18 @@ Based on the detailed analysis above, the sources demonstrate varying levels of 
     elizaLogger.info(`[ResearchService] Analyzing ${project.sources.length} sources with relevance verification`);
     
     for (const source of project.sources) {
+      // Skip sources where extraction explicitly failed
+      if ((source.metadata as any)?.extractionFailed) {
+        elizaLogger.warn(`[ResearchService] Skipping source due to extraction failure: ${source.url}`);
+        continue;
+      }
+
       // Use fullContent if available, otherwise fall back to snippet
       const contentToAnalyze = source.fullContent || source.snippet || source.title;
-      
-      if (!contentToAnalyze) {
-        elizaLogger.warn(`[ResearchService] No content available for source: ${source.url}`);
-        await this.researchLogger.logContentExtraction(
-          project.id,
-          source.url,
-          source.title,
-          'none',
-          false,
-          0,
-          'No content available'
-        );
+
+      // If content is missing or too minimal (<100 characters), skip analysis
+      if (!contentToAnalyze || contentToAnalyze.trim().length < 100) {
+        elizaLogger.warn(`[ResearchService] Insufficient content for analysis (<100 chars): ${source.url}`);
         continue;
       }
 
@@ -2473,20 +2533,33 @@ CRITICAL INSTRUCTIONS:
 3. Rate relevance strictly - only high relevance should get scores > 0.7
 4. Focus on actionable insights that help answer the original question
 5. Avoid generic or tangential information
+6. Return ONLY a valid JSON array with NO additional text before or after
+7. Use ONLY double quotes for strings, never single quotes
+8. Ensure all JSON is properly formatted with no trailing commas
 
-For each finding:
-1. Extract the specific finding/insight that addresses the query
-2. Rate relevance to query (0-1) - be strict, only highly relevant content should score > 0.7
-3. Rate confidence in the finding (0-1)
-4. Categorize appropriately
+For each finding provide exactly these fields:
+- content: specific finding that addresses the query (string)
+- relevance: how relevant to query, 0-1 (number)
+- confidence: confidence in the finding, 0-1 (number)  
+- category: one of "fact", "insight", "recommendation", "statistic" (string)
 
-Format as JSON array:
-[{
-  "content": "specific finding that addresses the query",
-  "relevance": 0.9,
-  "confidence": 0.8,
-  "category": "fact"
-}]`;
+Example format (return ONLY JSON like this):
+[
+  {
+    "content": "Adults typically cycle through 4-6 sleep cycles per night, each lasting 90-110 minutes",
+    "relevance": 0.9,
+    "confidence": 0.95,
+    "category": "fact"
+  },
+  {
+    "content": "REM sleep increases in duration and frequency towards morning hours",
+    "relevance": 0.85,
+    "confidence": 0.9,
+    "category": "fact"
+  }
+]
+
+IMPORTANT: Return ONLY the JSON array, no other text.`;
 
     elizaLogger.debug(`[ResearchService] Calling LLM for finding extraction:`, {
       sourceTitle: source.title,
@@ -2494,16 +2567,17 @@ Format as JSON array:
       promptLength: prompt.length
     });
 
-    const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a research analyst extracting only the most relevant findings that directly address the research query. Be strict about relevance.',
-        },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.3, // Lower temperature for more focused extraction
-    });
+    const response = await safeModelCall(
+      this.runtime,
+      ModelType.TEXT_LARGE,
+      {
+        prompt: `System: You are a research analyst extracting only the most relevant findings that directly address the research query. Be strict about relevance.
+
+User: ${prompt}`,
+        temperature: 0.3, // Lower temperature for more focused extraction
+      },
+      'ResearchService.extractFindingsWithRelevance'
+    );
 
     elizaLogger.debug(`[ResearchService] LLM response received:`, {
       responseType: typeof response,
@@ -2511,31 +2585,159 @@ Format as JSON array:
       responsePreview: response ? String(response).substring(0, 200) : 'null'
     });
 
+    // Enhanced logging for debugging
+    elizaLogger.info(`[ResearchService] Raw LLM response for ${source.title}:`, {
+      fullResponse: response ? String(response).substring(0, 1000) : 'null response',
+      responseType: typeof response
+    });
+
+    // Log the model call for research tracking
+    const project = Array.from(this.projects.values()).find(p => p.status === ResearchStatus.ACTIVE);
+    if (project) {
+      await this.researchLogger.logModelCall(
+        project.id,
+        'finding-extraction',
+        prompt,
+        response,
+        null
+      );
+    }
+
     try {
       const responseContent = typeof response === 'string' ? response : (response as any).content || '';
       
-      // Try to extract JSON from the response
+      // Log the full response for debugging
+      console.log(`[DEBUG] Full response for ${source.title}:`, responseContent);
+      
+      // Try multiple JSON extraction strategies
+      let findings = [];
+      
+      // Strategy 1: Look for JSON array
       const jsonMatch = responseContent.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const findings = JSON.parse(jsonMatch[0]);
-        // Validate findings structure and filter for quality
-        if (Array.isArray(findings) && findings.length > 0) {
-          // Additional filtering for relevance in the extraction phase
-          const relevantFindings = findings.filter(f => 
-            f.content && 
-            f.content.length > 20 && // Minimum content length
-            f.relevance >= 0.5 && // Minimum relevance threshold
-            f.category && 
-            typeof f.confidence === 'number'
-          );
+        try {
+          // First attempt to repair the JSON with jsonrepair (handles trailing commas, quotes, etc.)
+          try {
+            const repaired = jsonrepair(jsonMatch[0]);
+            findings = JSON.parse(repaired);
+          } catch (_) {
+            // If jsonrepair fails, fall back to manual cleaning heuristics below
+          }
+
+          // If the jsonrepair attempt parsed successfully, skip further cleaning
+          if (findings.length === 0) {
+            // Clean the JSON string before parsing
+            const cleanedJson = jsonMatch[0]
+              .replace(/[\u2018\u2019]/g, "'") // Replace smart quotes
+              .replace(/[\u201C\u201D]/g, '"') // Replace smart double quotes
+              .replace(/'/g, '"') // Replace single quotes with double quotes
+              .replace(/(\w+):/g, '"$1":') // Add quotes to unquoted keys
+              .replace(/,\s*}]/g, '}]') // Remove trailing commas
+              .replace(/,\s*}/g, '}'); // Remove trailing commas in objects
+            
+            elizaLogger.debug(`[ResearchService] Attempting to parse cleaned JSON:`, {
+              originalJson: jsonMatch[0].substring(0, 200),
+              cleanedJson: cleanedJson.substring(0, 200)
+            });
+            
+            findings = JSON.parse(cleanedJson);
+          }
+        } catch (parseError) {
+          elizaLogger.warn(`[ResearchService] JSON parse error after cleaning:`, {
+            error: parseError instanceof Error ? parseError.message : String(parseError),
+            jsonSnippet: jsonMatch[0].substring(0, 200)
+          });
           
-          elizaLogger.debug(`[ResearchService] Extracted ${relevantFindings.length}/${findings.length} quality findings from ${source.title}`);
-          return relevantFindings;
+          // Strategy 2: Try to extract individual finding objects
+          const findingMatches = responseContent.matchAll(/\{[^}]+\}/g);
+          for (const match of findingMatches) {
+            try {
+              const cleanedFinding = match[0]
+                .replace(/[\u2018\u2019]/g, "'")
+                .replace(/[\u201C\u201D]/g, '"')
+                .replace(/'/g, '"')
+                .replace(/(\w+):/g, '"$1":');
+              
+              const finding = JSON.parse(cleanedFinding);
+              if (finding.content && typeof finding.relevance === 'number') {
+                findings.push(finding);
+              }
+            } catch (e) {
+              // Skip invalid finding
+              elizaLogger.debug(`[ResearchService] Skipped invalid finding: ${match[0].substring(0, 100)}`);
+            }
+          }
         }
       }
       
-      // If no valid JSON found, throw error instead of creating fake findings
-      throw new Error(`Failed to extract valid findings from LLM response. Response: ${responseContent.substring(0, 200)}`);
+      // If still no findings, try to extract structured data manually
+      if (findings.length === 0) {
+        elizaLogger.warn(`[ResearchService] Falling back to manual extraction for ${source.title}`);
+        
+        // Look for structured patterns in the response
+        const lines = responseContent.split('\n');
+        const currentFinding: any = {};
+        
+        for (const line of lines) {
+          if (line.includes('content:') || line.includes('"content"')) {
+            const contentMatch = line.match(/["']?content["']?\s*:\s*["']([^"']+)["']/);
+            if (contentMatch) {
+              currentFinding.content = contentMatch[1];
+            }
+          }
+          if (line.includes('relevance:') || line.includes('"relevance"')) {
+            const relevanceMatch = line.match(/["']?relevance["']?\s*:\s*([\d.]+)/);
+            if (relevanceMatch) {
+              currentFinding.relevance = parseFloat(relevanceMatch[1]);
+            }
+          }
+          if (line.includes('confidence:') || line.includes('"confidence"')) {
+            const confidenceMatch = line.match(/["']?confidence["']?\s*:\s*([\d.]+)/);
+            if (confidenceMatch) {
+              currentFinding.confidence = parseFloat(confidenceMatch[1]);
+            }
+          }
+          if (line.includes('category:') || line.includes('"category"')) {
+            const categoryMatch = line.match(/["']?category["']?\s*:\s*["']([^"']+)["']/);
+            if (categoryMatch) {
+              currentFinding.category = categoryMatch[1];
+            }
+          }
+          
+          // If we have a complete finding, add it
+          if (currentFinding.content && currentFinding.relevance && currentFinding.confidence && currentFinding.category) {
+            findings.push({ ...currentFinding });
+            Object.keys(currentFinding).forEach(key => delete currentFinding[key]);
+          }
+        }
+      }
+      
+      // Validate findings structure and filter for quality
+      if (Array.isArray(findings) && findings.length > 0) {
+        // Additional filtering for relevance in the extraction phase
+        const relevantFindings = findings.filter(f => 
+          f.content && 
+          f.content.length > 20 && // Minimum content length
+          f.relevance >= 0.5 && // Minimum relevance threshold
+          f.category && 
+          typeof f.confidence === 'number'
+        );
+        
+        elizaLogger.info(`[ResearchService] Successfully extracted ${relevantFindings.length}/${findings.length} quality findings from ${source.title}`);
+        return relevantFindings;
+      }
+      
+      // If no valid findings found, log detailed error
+      elizaLogger.error(`[ResearchService] No valid findings extracted from ${source.title}`, {
+        responseLength: responseContent.length,
+        responsePreview: responseContent.substring(0, 500),
+        extractionAttempts: {
+          jsonArrayFound: !!jsonMatch,
+          findingsArrayLength: findings.length
+        }
+      });
+      
+      return [];
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
       const errorStack = e instanceof Error ? e.stack : undefined;
@@ -2546,6 +2748,7 @@ Format as JSON array:
         error: errorMessage,
         contentLength: content.length,
         contentPreview: content.substring(0, 200),
+        responsePreview: response ? String(response).substring(0, 500) : 'null',
         stack: errorStack,
         fullError: e
       });
@@ -2553,8 +2756,26 @@ Format as JSON array:
       console.error(`[DETAILED ERROR] Finding extraction failed for ${source.title}:`, {
         error: errorMessage,
         stack: errorStack,
-        contentLength: content.length
+        contentLength: content.length,
+        responseContent: response ? String(response).substring(0, 1000) : 'null'
       });
+      
+      // Log error to research logger
+      const project = Array.from(this.projects.values()).find(p => p.status === ResearchStatus.ACTIVE);
+      if (project) {
+        await this.researchLogger.logError(
+          project.id,
+          'finding-extraction-error',
+          e,
+          {
+            sourceUrl: source.url,
+            sourceTitle: source.title,
+            contentLength: content.length,
+            responseType: typeof response,
+            responseLength: response ? String(response).length : 0
+          }
+        );
+      }
       
       // Return empty array instead of fake findings - let the caller handle the failure
       return [];

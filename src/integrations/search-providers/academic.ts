@@ -191,6 +191,14 @@ export class AcademicSearchProvider {
       });
       
       if (response.status >= 400) {
+        // Extra debug information for troubleshooting CrossRef issues
+        elizaLogger.debug('[CrossRef] Request details', {
+          url,
+          params,
+          status: response.status,
+          statusText: response.statusText,
+          responseData: response.data,
+        });
         elizaLogger.warn(`[CrossRef] HTTP ${response.status}: Query too short or invalid`);
         return [];
       }

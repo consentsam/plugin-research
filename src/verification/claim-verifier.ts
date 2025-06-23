@@ -1,6 +1,7 @@
 import { IAgentRuntime, elizaLogger } from '@elizaos/core';
 import crypto from 'crypto';
 import { RESEARCH_PROMPTS, formatPrompt, getPromptConfig } from '../prompts/research-prompts';
+import { safeModelCall } from '../utils/model-error-logger';
 import {
     FactualClaim,
     ResearchSource,
@@ -136,17 +137,18 @@ export class ClaimVerifier {
       });
 
       const config = getPromptConfig('verification');
-      const response = await this.runtime.useModel(config.modelType, {
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a rigorous fact-checker. Be extremely strict about verification.' 
-          },
-          { role: 'user', content: verificationPrompt }
-        ],
-        temperature: config.temperature,
-        max_tokens: config.maxTokens || 1500,
-      });
+      const response = await safeModelCall(
+        this.runtime,
+        config.modelType,
+        {
+          prompt: `System: You are a rigorous fact-checker. Be extremely strict about verification.
+
+User: ${verificationPrompt}`,
+          temperature: config.temperature,
+          max_tokens: config.maxTokens || 1500,
+        },
+        'ClaimVerifier.verifyAgainstSource'
+      );
 
       const result = this.parseVerificationResponse(response);
 

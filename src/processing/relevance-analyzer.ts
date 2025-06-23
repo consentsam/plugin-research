@@ -1,5 +1,6 @@
 import { elizaLogger, IAgentRuntime, ModelType } from '@elizaos/core';
 import { SearchResult, ResearchSource, ResearchFinding } from '../types';
+import { safeModelCall } from '../utils/model-error-logger';
 
 export interface RelevanceScore {
   score: number; // 0-1
@@ -47,16 +48,17 @@ Format as JSON:
 }`;
 
     try {
-      const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a research query analyst. Extract query intent and relevance criteria precisely.' 
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.3,
-      });
+      const response = await safeModelCall(
+        this.runtime,
+        ModelType.TEXT_LARGE,
+        {
+          prompt: `System: You are a research query analyst. Extract query intent and relevance criteria precisely.
+
+User: ${prompt}`,
+          temperature: 0.3,
+        },
+        'RelevanceAnalyzer.analyzeQueryRelevance'
+      );
 
       const responseContent = typeof response === 'string' ? response : (response as any).content || '';
       const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
@@ -120,16 +122,17 @@ Format as JSON:
 }`;
 
     try {
-      const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a search result relevance scorer. Be critical - only high relevance should get high scores.' 
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.2,
-      });
+      const response = await safeModelCall(
+        this.runtime,
+        ModelType.TEXT_LARGE,
+        {
+          prompt: `System: You are a search result relevance scorer. Be critical - only high relevance should get high scores.
+
+User: ${prompt}`,
+          temperature: 0.2,
+        },
+        'RelevanceAnalyzer.scoreSearchResultRelevance'
+      );
 
       const responseContent = typeof response === 'string' ? response : (response as any).content || '';
       const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
@@ -213,16 +216,17 @@ Format as JSON:
 }`;
 
     try {
-      const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a research finding relevance judge. Be strict - only findings that directly address the query should score high.' 
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.2,
-      });
+      const response = await safeModelCall(
+        this.runtime,
+        ModelType.TEXT_LARGE,
+        {
+          prompt: `System: You are a research finding relevance judge. Be strict - only findings that directly address the query should score high.
+
+User: ${prompt}`,
+          temperature: 0.2,
+        },
+        'RelevanceAnalyzer.scoreFindingRelevance'
+      );
 
       const responseContent = typeof response === 'string' ? response : (response as any).content || '';
       const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
@@ -298,16 +302,17 @@ Format as JSON:
 }`;
 
     try {
-      const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a research completeness assessor. Evaluate if findings actually answer the research question.' 
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.3,
-      });
+      const response = await safeModelCall(
+        this.runtime,
+        ModelType.TEXT_LARGE,
+        {
+          prompt: `System: You are a research completeness assessor. Evaluate if findings actually answer the research question.
+
+User: ${prompt}`,
+          temperature: 0.3,
+        },
+        'RelevanceAnalyzer.verifyQueryAnswering'
+      );
 
       const responseContent = typeof response === 'string' ? response : (response as any).content || '';
       const jsonMatch = responseContent.match(/\{[\s\S]*\}/);

@@ -19,6 +19,7 @@ import {
   ActionContext,
   ResearchProject,
 } from './types';
+import { safeModelCall } from './utils/model-error-logger';
 
 // Helper function to extract domain from text
 async function extractDomain(runtime: IAgentRuntime, text: string): Promise<ResearchDomain> {
@@ -30,9 +31,14 @@ Domains: ${Object.values(ResearchDomain).join(', ')}
 
 Respond with just the domain name.`;
 
-    const response = await runtime.useModel(ModelType.TEXT_SMALL, {
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const response = await safeModelCall(
+      runtime,
+      ModelType.TEXT_SMALL,
+      {
+        prompt: prompt,
+      },
+      'actions.extractDomain'
+    );
 
     const domainText = (typeof response === 'string' ? response : (response as any).content || '')
       .toLowerCase()
@@ -70,7 +76,7 @@ Task Types:
 Respond with just the task type.`;
 
     const response = await runtime.useModel(ModelType.TEXT_SMALL, {
-      messages: [{ role: 'user', content: prompt }],
+      prompt: prompt,
     });
 
     const taskText = (typeof response === 'string' ? response : (response as any).content || '')
@@ -93,6 +99,19 @@ Respond with just the task type.`;
 
 // Helper function to extract research depth
 async function extractDepth(runtime: IAgentRuntime, text: string): Promise<ResearchDepth> {
+  // First, honour explicit environment variable if provided
+  const envDepth = (process.env.RESEARCH_DEPTH || '').toLowerCase();
+  switch (envDepth) {
+    case 'surface':
+      return ResearchDepth.SURFACE;
+    case 'moderate':
+      return ResearchDepth.MODERATE;
+    case 'deep':
+      return ResearchDepth.DEEP;
+    case 'phd-level':
+      return ResearchDepth.PHD_LEVEL;
+  }
+
   try {
     const prompt = `Analyze this research query and determine the appropriate depth:
 Query: "${text}"
@@ -108,7 +127,7 @@ Look for keywords like: quick, overview, detailed, comprehensive, expert, academ
 Respond with just the depth level.`;
 
     const response = await runtime.useModel(ModelType.TEXT_SMALL, {
-      messages: [{ role: 'user', content: prompt }],
+      prompt: prompt,
     });
 
     const depthText = (typeof response === 'string' ? response : (response as any).content || '')
@@ -447,7 +466,7 @@ Respond with JSON:
 }`;
 
       const response = await runtime.useModel(ModelType.TEXT_LARGE, {
-        messages: [{ role: 'user', content: refinementPrompt }],
+        prompt: refinementPrompt,
       });
 
       let refinement;

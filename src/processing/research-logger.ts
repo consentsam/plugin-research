@@ -117,6 +117,112 @@ export class ResearchLogger {
 
     // Create logs directory
     await fs.mkdir(this.logsDir, { recursive: true });
+    
+    // Log initial session setup
+    elizaLogger.info(`[ResearchLogger] Session initialized:`, {
+      projectId,
+      query: originalQuery,
+      queryIntent: queryAnalysis.queryIntent,
+      keyTopics: queryAnalysis.keyTopics,
+      requiredElements: queryAnalysis.requiredElements
+    });
+  }
+
+  async logPhaseTransition(
+    projectId: string,
+    fromPhase: string,
+    toPhase: string,
+    metadata?: any
+  ): Promise<void> {
+    const session = this.sessions.get(projectId);
+    if (!session) return;
+
+    const logEntry = {
+      timestamp: Date.now(),
+      projectId,
+      fromPhase,
+      toPhase,
+      duration: Date.now() - session.startTime,
+      metadata
+    };
+
+    elizaLogger.info(`[ResearchLogger] Phase transition: ${fromPhase} → ${toPhase}`, logEntry);
+
+    // Save phase transition log
+    try {
+      const phaseLogPath = path.join(this.logsDir, `${projectId}_phases.jsonl`);
+      await fs.appendFile(phaseLogPath, JSON.stringify(logEntry) + '\n', 'utf-8');
+    } catch (error) {
+      elizaLogger.error('[ResearchLogger] Failed to save phase transition log:', error);
+    }
+  }
+
+  async logModelCall(
+    projectId: string,
+    context: string,
+    prompt: string,
+    response: any,
+    error?: any
+  ): Promise<void> {
+    const session = this.sessions.get(projectId);
+    if (!session) return;
+
+    const logEntry = {
+      timestamp: Date.now(),
+      projectId,
+      context,
+      promptLength: prompt.length,
+      promptPreview: prompt.substring(0, 200),
+      responseType: typeof response,
+      responseLength: response ? String(response).length : 0,
+      responsePreview: response ? String(response).substring(0, 200) : null,
+      error: error ? {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      } : null
+    };
+
+    elizaLogger.debug(`[ResearchLogger] Model call logged for ${context}`, logEntry);
+
+    // Save model call log
+    try {
+      const modelLogPath = path.join(this.logsDir, `${projectId}_model_calls.jsonl`);
+      await fs.appendFile(modelLogPath, JSON.stringify(logEntry) + '\n', 'utf-8');
+    } catch (err) {
+      elizaLogger.error('[ResearchLogger] Failed to save model call log:', err);
+    }
+  }
+
+  async logError(
+    projectId: string,
+    errorType: string,
+    error: any,
+    context: any
+  ): Promise<void> {
+    const session = this.sessions.get(projectId);
+    if (!session) return;
+
+    const errorEntry = {
+      timestamp: Date.now(),
+      projectId,
+      errorType,
+      error: {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : 'UnknownError'
+      },
+      context
+    };
+
+    elizaLogger.error(`[ResearchLogger] Error logged:`, errorEntry);
+
+    // Save error log
+    try {
+      const errorLogPath = path.join(this.logsDir, `${projectId}_errors.jsonl`);
+      await fs.appendFile(errorLogPath, JSON.stringify(errorEntry) + '\n', 'utf-8');
+    } catch (err) {
+      elizaLogger.error('[ResearchLogger] Failed to save error log:', err);
+    }
   }
 
   async logSearch(

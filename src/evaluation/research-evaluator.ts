@@ -10,6 +10,7 @@ import {
   EvaluationMetrics,
   VerificationStatus,
 } from '../types';
+import { safeModelCall } from '../utils/model-error-logger';
 
 /**
  * RACE (Reference-based Adaptive Criteria-driven Evaluation) implementation
@@ -117,17 +118,18 @@ Respond with JSON:
   }
 }`;
 
-      const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are an expert research evaluator. Provide a balanced, fair assessment.' 
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.3,
-        max_tokens: 1000,
-      });
+      const response = await safeModelCall(
+        this.runtime,
+        ModelType.TEXT_LARGE,
+        {
+          prompt: `System: You are an expert research evaluator. Provide a balanced, fair assessment.
+
+User: ${prompt}`,
+          temperature: 0.3,
+          max_tokens: 1000,
+        },
+        'RACEEvaluator.evaluateDimension'
+      );
 
       const content = typeof response === 'string' ? response : (response as any).content || '';
       
@@ -259,17 +261,18 @@ Respond with JSON array:
 Extract 3-5 key claims maximum.`;
 
     try {
-      const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a fact extraction expert. Extract only clear, verifiable claims.' 
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.2,
-        max_tokens: 1500,
-      });
+      const response = await safeModelCall(
+        this.runtime,
+        ModelType.TEXT_LARGE,
+        {
+          prompt: `System: You are a fact extraction expert. Extract only clear, verifiable claims.
+
+User: ${prompt}`,
+          temperature: 0.2,
+          max_tokens: 1500,
+        },
+        'FACTEvaluator.extractClaimsFromText'
+      );
 
       const content = typeof response === 'string' ? response : (response as any).content || '';
       
@@ -332,17 +335,18 @@ Source URL: ${claim.sourceUrls[0]}
 Answer with just "yes" or "no".`;
 
     try {
-      const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a fact verifier. Answer only yes or no.' 
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.1,
-        max_tokens: 10,
-      });
+      const response = await safeModelCall(
+        this.runtime,
+        ModelType.TEXT_LARGE,
+        {
+          prompt: `System: You are a fact verifier. Answer only yes or no.
+
+User: ${prompt}`,
+          temperature: 0.1,
+          max_tokens: 10,
+        },
+        'FACTEvaluator.verifySingleClaim'
+      );
 
       const answer = typeof response === 'string' ? response : (response as any).content || '';
       return answer.toLowerCase().includes('yes');

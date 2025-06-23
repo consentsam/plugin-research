@@ -17,6 +17,7 @@ import {
   SourceType,
   RubricItem,
 } from '../types';
+import { safeModelCall } from '../utils/model-error-logger';
 
 // Domain-specific research configurations
 const DOMAIN_CONFIGS: Record<ResearchDomain, DomainConfig> = {
@@ -259,16 +260,17 @@ Options:
 Respond with just the option name.`;
 
     try {
-      const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a temporal focus analyzer. Respond with only the temporal focus option, nothing else.' 
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.3,
-      });
+      const response = await safeModelCall(
+        this.runtime,
+        ModelType.TEXT_LARGE,
+        {
+          prompt: `System: You are a temporal focus analyzer. Respond with only the temporal focus option, nothing else.
+
+User: ${prompt}`,
+          temperature: 0.3,
+        },
+        'ResearchStrategyFactory.analyzeTemporalFocus'
+      );
 
       const focus = (typeof response === 'string' ? response : (response as any).content || '').trim().toLowerCase();
       
@@ -292,16 +294,17 @@ List any countries, regions, cities, or geographic areas mentioned. If none, ret
 Respond with a comma-separated list.`;
 
     try {
-      const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a geographic scope extractor. Return only a comma-separated list of locations or "global".' 
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.3,
-      });
+      const response = await safeModelCall(
+        this.runtime,
+        ModelType.TEXT_LARGE,
+        {
+          prompt: `System: You are a geographic scope extractor. Return only a comma-separated list of locations or "global".
+
+User: ${prompt}`,
+          temperature: 0.3,
+        },
+        'ResearchStrategyFactory.extractGeographicScope'
+      );
 
       const locations = (typeof response === 'string' ? response : (response as any).content || '')
         .split(',')
@@ -372,7 +375,7 @@ export class QueryPlanner {
     domainConfig: DomainConfig
   ): Promise<SubQuery[]> {
     // Try to use AI model if available
-    if (this.runtime.useModel) {
+    if (typeof this.runtime.useModel === 'function') {
       try {
         const prompt = `Generate sub-queries for this research task:
 Main Query: "${mainQuery}"
@@ -397,16 +400,17 @@ PRIORITY: [high/medium/low]
 
 Separate each sub-query with ---`;
 
-        const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-          messages: [
-            { 
-              role: 'system', 
-              content: 'You are an expert research query planner. Generate detailed sub-queries following the exact format requested.' 
-            },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.7,
-        });
+        const response = await safeModelCall(
+          this.runtime,
+          ModelType.TEXT_LARGE,
+          {
+            prompt: `System: You are an expert research query planner. Generate detailed sub-queries following the exact format requested.
+
+User: ${prompt}`,
+            temperature: 0.7,
+          },
+          'QueryPlanner.generateSubQueries'
+        );
 
         const responseText = typeof response === 'string' ? response : (response as any).content || '';
         const subQueryTexts = responseText.split('---').filter((s: string) => s.trim());
@@ -632,16 +636,17 @@ Generate 2-4 refined queries that:
 
 Format: One query per line`;
 
-    const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-      messages: [
-        { 
-          role: 'system', 
-          content: 'You are a research query refinement expert. Generate refined queries based on current findings.' 
-        },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.7,
-    });
+    const response = await safeModelCall(
+      this.runtime,
+      ModelType.TEXT_LARGE,
+      {
+        prompt: `System: You are a research query refinement expert. Generate refined queries based on current findings.
+
+User: ${prompt}`,
+        temperature: 0.7,
+      },
+      'QueryPlanner.refineQuery'
+    );
 
     const responseText = typeof response === 'string' ? response : (response as any).content || '';
     return responseText
@@ -706,7 +711,7 @@ export class EvaluationCriteriaGenerator {
     weight: number
   ): Promise<CriteriaDefinition> {
     // Try to use AI model if available
-    if (this.runtime.useModel) {
+    if (typeof this.runtime.useModel === 'function') {
       try {
         const prompt = `Generate a detailed evaluation rubric for the following criterion:
 Name: ${name}
@@ -720,16 +725,17 @@ Format:
 3: [Description of good/strong]
 4: [Description of excellent/exceptional]`;
 
-        const response = await this.runtime.useModel(ModelType.TEXT_LARGE, {
-          messages: [
-            { 
-              role: 'system', 
-          content: 'You are an evaluation criteria expert. Generate a detailed rubric following the exact format requested.' 
-        },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.5,
-    });
+        const response = await safeModelCall(
+          this.runtime,
+          ModelType.TEXT_LARGE,
+          {
+            prompt: `System: You are an evaluation criteria expert. Generate a detailed rubric following the exact format requested.
+
+User: ${prompt}`,
+            temperature: 0.5,
+          },
+          'EvaluationCriteriaGenerator.generateCriterion'
+        );
 
         const responseText = typeof response === 'string' ? response : (response as any).content || '';
         const rubricItems = this.parseRubric(responseText);
